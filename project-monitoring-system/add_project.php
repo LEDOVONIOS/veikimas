@@ -10,6 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $projectName = sanitizeInput($_POST['project_name'] ?? '');
     $projectUrl = sanitizeInput($_POST['project_url'] ?? '');
     $description = sanitizeInput($_POST['description'] ?? '');
+    $serverLocation = sanitizeInput($_POST['server_location'] ?? '');
     
     // Validation
     if (empty($projectName)) {
@@ -24,14 +25,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         try {
             $stmt = $pdo->prepare("
-                INSERT INTO projects (user_id, project_name, project_url, description) 
-                VALUES (?, ?, ?, ?)
+                INSERT INTO projects (user_id, project_name, project_url, description, server_location) 
+                VALUES (?, ?, ?, ?, ?)
             ");
             $stmt->execute([
                 $_SESSION['user_id'],
                 $projectName,
                 $projectUrl ?: null,
-                $description ?: null
+                $description ?: null,
+                $serverLocation ?: null
             ]);
             
             $projectId = $pdo->lastInsertId();
@@ -94,6 +96,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            value="<?php echo htmlspecialchars($_POST['project_url'] ?? ''); ?>"
                            placeholder="https://example.com">
                     <small>Optional: The URL of your project website</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="server_location">Server Location</label>
+                    <input type="text" id="server_location" name="server_location" 
+                           value="<?php echo htmlspecialchars($_POST['server_location'] ?? ''); ?>"
+                           placeholder="e.g., US East, Europe, Singapore">
+                    <small>Optional: Geographic location of your server</small>
                 </div>
                 
                 <div class="form-group">
