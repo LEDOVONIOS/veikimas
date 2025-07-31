@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { MonitorEntry, WebsiteStatus } from '@/lib/types';
 
 interface MonitorListProps {
@@ -8,6 +9,7 @@ interface MonitorListProps {
 }
 
 export default function MonitorList({ refreshTrigger }: MonitorListProps) {
+  const router = useRouter();
   const [monitors, setMonitors] = useState<MonitorEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,7 +152,7 @@ export default function MonitorList({ refreshTrigger }: MonitorListProps) {
                   Last Checked
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
+                  Monthly Monitoring
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -183,16 +185,28 @@ export default function MonitorList({ refreshTrigger }: MonitorListProps) {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(monitor.lastChecked)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {monitor.email}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {monitor.monthlyMonitoringEnabled ? (
+                      <span className="text-green-600">✓ Enabled</span>
+                    ) : (
+                      <span className="text-gray-400">Disabled</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button
-                      onClick={() => handleDelete(monitor.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Remove
-                    </button>
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => router.push(`/monitor/${monitor.id}`)}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        Dashboard
+                      </button>
+                      <button
+                        onClick={() => handleDelete(monitor.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

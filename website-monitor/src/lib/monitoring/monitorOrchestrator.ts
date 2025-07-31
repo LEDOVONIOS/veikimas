@@ -1,12 +1,14 @@
 import { MonitoringService } from './monitor';
 import { EmailService } from '@/lib/email/emailService';
 import { getMonitorStore } from '@/lib/storage/monitorStore';
+import { getHistoricalStore } from '@/lib/storage/historicalStore';
 import { EmailNotification } from '@/lib/types';
 
 export class MonitorOrchestrator {
   private monitoringService: MonitoringService;
   private emailService: EmailService;
   private store = getMonitorStore();
+  private historicalStore = getHistoricalStore();
 
   constructor() {
     this.monitoringService = new MonitoringService();
@@ -32,6 +34,31 @@ export class MonitorOrchestrator {
     try {
       // Perform the website check
       const result = await this.monitoringService.checkWebsite(monitor.url);
+      
+      // Record response time and status
+      await this.historicalStore.addResponseTime(monitorId, {
+        monitorId,
+        timestamp: new Date(),
+        responseTime: result.responseTime,
+        status: result.status,
+        statusCode: result.statusCode,
+      });
+
+      // Handle incidents
+      const activeIncident = this.historicalStore.getActiveIncident(monitorId);
+      
+      if (result.status !== 'up' && !activeIncident) {
+        // Start new incident
+        const rootCause = result.error || 
+          (result.status === 'ssl_error' ? 'SSL certificate issue' : 
+           result.status === 'client_error' ? `HTTP ${result.statusCode} client error` :
+           'Server not responding');
+        
+        await this.historicalStore.startIncident(monitorId, result.status, rootCause);
+      } else if (result.status === 'up' && activeIncident) {
+        // End active incident
+        await this.historicalStore.endIncident(monitorId, activeIncident.id);
+      }
       
       // Update monitor with results
       const updatedMonitor = await this.store.updateMonitor(monitorId, {
@@ -74,6 +101,15 @@ export class MonitorOrchestrator {
     } catch (error) {
       console.error(`Error checking monitor ${monitor.url}:`, error);
       
+      // Record the error as a response time entry
+      await this.historicalStore.addResponseTime(monitorId, {
+        monitorId,
+        timestamp: new Date(),
+        responseTime: 0,
+        status: 'down',
+        statusCode: null,
+      });
+      
       // Update monitor with error state
       await this.store.updateMonitor(monitorId, {
         lastStatus: 'down',
@@ -99,6 +135,12 @@ export class MonitorOrchestrator {
     
     // Immediately check the monitor
     await this.checkSingleMonitor(monitor.id);
+  }
+
+  async toggleMonthlyMonitoring(monitorId: string, enabled: boolean): Promise<void> {
+    await this.store.updateMonitor(monitorId, {
+      monthlyMonitoringEnabled: enabled,
+    });
   }
 }
 
