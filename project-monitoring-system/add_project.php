@@ -10,7 +10,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $projectName = sanitizeInput($_POST['project_name'] ?? '');
     $projectUrl = sanitizeInput($_POST['project_url'] ?? '');
     $description = sanitizeInput($_POST['description'] ?? '');
-    $serverLocation = sanitizeInput($_POST['server_location'] ?? '');
     
     // Validation
     if (empty($projectName)) {
@@ -25,22 +24,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         try {
             $stmt = $pdo->prepare("
-                INSERT INTO projects (user_id, project_name, project_url, description, server_location) 
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO projects (user_id, project_name, project_url, description) 
+                VALUES (?, ?, ?, ?)
             ");
             $stmt->execute([
                 $_SESSION['user_id'],
                 $projectName,
                 $projectUrl ?: null,
-                $description ?: null,
-                $serverLocation ?: null
+                $description ?: null
             ]);
             
             $projectId = $pdo->lastInsertId();
             header("Location: project.php?id=" . $projectId);
             exit();
         } catch (PDOException $e) {
-            $errors[] = "Failed to create project. Please try again.";
+            // Log the actual error for debugging
+            error_log("Project creation error: " . $e->getMessage());
+            
+            // Provide user-friendly error message
+            if ($e->getCode() == '23000') {
+                $errors[] = "A project with this name might already exist. Please try a different name.";
+            } else {
+                $errors[] = "Failed to create project. Please ensure your database is properly set up.";
+                // In development, you might want to show the actual error:
+                // $errors[] = "Debug info: " . $e->getMessage();
+            }
         }
     }
 }
@@ -96,14 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            value="<?php echo htmlspecialchars($_POST['project_url'] ?? ''); ?>"
                            placeholder="https://example.com">
                     <small>Optional: The URL of your project website</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="server_location">Server Location</label>
-                    <input type="text" id="server_location" name="server_location" 
-                           value="<?php echo htmlspecialchars($_POST['server_location'] ?? ''); ?>"
-                           placeholder="e.g., US East, Europe, Singapore">
-                    <small>Optional: Geographic location of your server</small>
                 </div>
                 
                 <div class="form-group">
