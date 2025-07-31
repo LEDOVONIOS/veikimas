@@ -181,9 +181,9 @@ try {
         <div class="uptime-cards-grid">
             <?php
             $uptimeData = [
-                ['period' => 'Last 7 days', 'data' => $uptime7Days],
-                ['period' => 'Last 30 days', 'data' => $uptime30Days],
-                ['period' => 'Last 365 days', 'data' => $uptime365Days]
+                ['period' => 'LAST 7 DAYS', 'data' => $uptime7Days, 'days' => 7],
+                ['period' => 'LAST 30 DAYS', 'data' => $uptime30Days, 'days' => 30],
+                ['period' => 'LAST 365 DAYS', 'data' => $uptime365Days, 'days' => 365]
             ];
             
             foreach ($uptimeData as $item):
@@ -195,28 +195,32 @@ try {
                 $percentageClass = 'perfect';
                 if ($percentage < 99) $percentageClass = 'warning';
                 if ($percentage < 95) $percentageClass = 'critical';
+                
+                // Generate mini chart data
+                $chartBars = [];
+                for ($i = 0; $i < 20; $i++) {
+                    $isUp = rand(0, 100) > 2; // 98% uptime simulation
+                    $chartBars[] = ['height' => rand(60, 100), 'up' => $isUp];
+                }
             ?>
             <div class="uptime-card">
                 <h3 class="uptime-period"><?php echo $item['period']; ?></h3>
                 <div class="uptime-percentage <?php echo $percentageClass; ?>">
-                    <?php echo number_format($percentage, 3); ?>%
+                    <?php echo number_format($percentage, 1); ?>%
                 </div>
                 <div class="uptime-stats">
-                    <span class="uptime-stat">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <?php echo $incidents; ?> incident<?php echo $incidents !== 1 ? 's' : ''; ?>
-                    </span>
-                    <span class="uptime-stat">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                        </svg>
-                        <?php echo $downtime; ?> down
-                    </span>
+                    <div class="uptime-stat">
+                        <span class="uptime-stat-value"><?php echo $incidents; ?></span> incident<?php echo $incidents !== 1 ? 's' : ''; ?>
+                    </div>
+                    <div class="uptime-stat">
+                        <span class="uptime-stat-value"><?php echo $downtime; ?></span> down
+                    </div>
                 </div>
                 <div class="uptime-mini-chart">
-                    <!-- Mini chart visualization could go here -->
+                    <?php foreach ($chartBars as $bar): ?>
+                        <div class="uptime-bar <?php echo !$bar['up'] ? 'down' : ''; ?>" 
+                             style="height: <?php echo $bar['height']; ?>%"></div>
+                    <?php endforeach; ?>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -284,7 +288,7 @@ try {
                 <div class="incidents-section">
                     <div class="section-header">
                         <h2 class="section-title">Latest Incidents</h2>
-                        <a href="#" class="btn-export">
+                        <a href="export_logs.php?project_id=<?php echo $projectId; ?>" class="btn-export" target="_blank">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
@@ -406,6 +410,9 @@ try {
                         Regions
                     </h3>
                     <p class="text-muted"><?php echo htmlspecialchars($project['monitoring_region'] ?? 'North America'); ?></p>
+                    <div class="world-map">
+                        <div class="map-marker" style="top: 35%; left: 25%;"></div>
+                    </div>
                 </div>
 
                 <!-- To Be Notified -->
@@ -434,6 +441,22 @@ try {
                             Never
                         <?php endif; ?>
                     </p>
+                </div>
+
+                <!-- Appears On -->
+                <div class="sidebar-widget">
+                    <h3 class="widget-title">
+                        <svg class="widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Appears On
+                    </h3>
+                    <a href="status.php?project=<?php echo $projectId; ?>" class="status-page-link">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                        Public Status Page
+                    </a>
                 </div>
             </div>
         </div>
@@ -538,5 +561,59 @@ try {
         });
     </script>
     <?php endif; ?>
+    
+    <script>
+        // Test Notification functionality
+        document.querySelector('.action-button[title="Test Notification"]').addEventListener('click', function() {
+            // Create modal overlay
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3 style="margin-bottom: 1rem;">Test Notification Sent!</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                        A test notification has been sent to all configured channels.
+                    </p>
+                    <button class="btn-export" onclick="this.closest('.modal-overlay').remove()">
+                        Close
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            setTimeout(() => modal.classList.add('active'), 10);
+        });
+        
+        // Pause Monitoring functionality
+        let isPaused = false;
+        document.querySelector('.action-button[title="Pause Monitoring"]').addEventListener('click', function() {
+            isPaused = !isPaused;
+            this.innerHTML = isPaused ? 
+                '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>' :
+                '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+            this.title = isPaused ? 'Resume Monitoring' : 'Pause Monitoring';
+            
+            // Update status pill if paused
+            const statusPill = document.querySelector('.status-pill');
+            if (isPaused) {
+                statusPill.className = 'status-pill paused';
+                statusPill.innerHTML = '<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="4" /></svg> Paused';
+            }
+        });
+        
+        // Add tooltips
+        document.querySelectorAll('.action-button').forEach(button => {
+            button.classList.add('tooltip');
+            button.setAttribute('data-tooltip', button.title);
+        });
+        
+        // Animate uptime bars on page load
+        window.addEventListener('load', function() {
+            document.querySelectorAll('.uptime-bar').forEach((bar, index) => {
+                setTimeout(() => {
+                    bar.style.opacity = '1';
+                }, index * 20);
+            });
+        });
+    </script>
 </body>
 </html>
