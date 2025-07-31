@@ -26,6 +26,16 @@
  * - Server location tracking
  * - Incident time filtering (24h, 7d, 30d)
  * - Mock data generation for testing
+ * - Last Checked timestamp tracking
+ * - Geographic monitoring region display
+ * - Cron job monitoring with status tracking
+ * - Real-time notifications for:
+ *   • Project down/up events
+ *   • SSL certificate expiry warnings
+ *   • Domain expiry warnings
+ *   • Cron job failures
+ * - UptimeRobot-style visual design
+ * - Notification center with badge count
  * 
  * SYSTEM REQUIREMENTS:
  * - PHP 8.0 or higher (uses match expressions)
@@ -46,6 +56,14 @@
  *    i) Copy and paste the entire contents of db.sql
  *    j) Click "Go" to create the initial tables
  *    k) IMPORTANT: Also run db_update.sql to add monitoring tables
+ *       This includes tables for:
+ *       - HTTP status logs
+ *       - Uptime logs
+ *       - SSL certificates
+ *       - Response times
+ *       - Cron jobs
+ *       - Notifications
+ *       - Notification settings
  * 
  * 2. FILE UPLOAD:
  *    a) Use File Manager or FTP to access your public_html directory
@@ -91,6 +109,61 @@
  *    - SSL Info: Shows certificate and domain expiry dates
  *    - Response Times: Interactive chart of performance metrics
  *    - Incidents: Filter by time period (24h, 7d, 30d)
+ * 
+ * NEW MONITORING FEATURES GUIDE:
+ * 
+ * A. LAST CHECKED TIMESTAMP:
+ *    - Automatically updated when monitoring checks run
+ *    - Displayed prominently in project details
+ *    - Shows exact date and time of last status check
+ * 
+ * B. GEOGRAPHIC REGION:
+ *    - Shows where uptime monitoring is performed from
+ *    - Default: North America
+ *    - Can be customized per project
+ * 
+ * C. CRON JOB MONITORING:
+ *    - Track scheduled tasks for each project
+ *    - Monitor success/failure status
+ *    - View last run time and next scheduled run
+ *    - Error messages displayed for failed jobs
+ *    - Automatic notifications on failures
+ * 
+ * D. NOTIFICATION SYSTEM:
+ *    - Real-time alerts for critical events
+ *    - Notification types:
+ *      • Down alerts (project not responding)
+ *      • Up alerts (project back online)
+ *      • SSL expiry warnings (30 days before)
+ *      • Domain expiry warnings (60 days before)
+ *      • Cron job failure alerts
+ *    - Notification badge in navigation
+ *    - Dedicated notifications page
+ *    - Mark as read functionality
+ * 
+ * E. ENHANCED SSL/DOMAIN INFO:
+ *    - SSL certificate issuer display
+ *    - Visual badges for expiry warnings
+ *    - Domain registration expiry tracking
+ *    - Automatic alerts before expiration
+ * 
+ * F. SETTING UP AUTOMATED MONITORING:
+ *    1) Create a cron job in Hostinger control panel
+ *    2) Set it to run every 5 minutes
+ *    3) Command: php /home/username/public_html/includes/notification_handler.php
+ *    4) This will automatically:
+ *       - Check project status
+ *       - Update last checked timestamps
+ *       - Generate notifications
+ *       - Monitor SSL/domain expiry
+ *       - Check cron job statuses
+ * 
+ * G. VISUAL ENHANCEMENTS:
+ *    - UptimeRobot-inspired design
+ *    - Clean status badges with colors
+ *    - Hover effects and transitions
+ *    - Responsive grid layouts
+ *    - Modern card-based UI
  * 
  * 7. GENERATING SAMPLE DATA:
  *    If you need to generate sample data for testing:
