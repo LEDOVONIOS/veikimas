@@ -1,16 +1,26 @@
 <?php
 require_once 'db.php';
+
+// Ensure session is started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 requireLogin();
 
 $errors = [];
 $success = false;
+
+// Debug: Log session info
+error_log("Add Project - Session ID: " . session_id());
+error_log("Add Project - User ID: " . ($_SESSION['user_id'] ?? 'not set'));
+error_log("Add Project - User Name: " . ($_SESSION['user_name'] ?? 'not set'));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Sanitize inputs
     $projectName = sanitizeInput($_POST['project_name'] ?? '');
     $projectUrl = sanitizeInput($_POST['project_url'] ?? '');
     $description = sanitizeInput($_POST['description'] ?? '');
-    $serverLocation = sanitizeInput($_POST['server_location'] ?? '');
     
     // Validation
     if (empty($projectName)) {
@@ -24,23 +34,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Create project if no errors
     if (empty($errors)) {
         try {
+            // Debug: Check if user_id exists
+            if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id'])) {
+                throw new Exception("User ID not found in session. Please log in again.");
+            }
+            
+            $userId = intval($_SESSION['user_id']); // Ensure it's an integer
+            
             $stmt = $pdo->prepare("
-                INSERT INTO projects (user_id, project_name, project_url, description, server_location) 
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO projects (user_id, project_name, project_url, description) 
+                VALUES (?, ?, ?, ?)
             ");
             $stmt->execute([
-                $_SESSION['user_id'],
+                $userId,
                 $projectName,
                 $projectUrl ?: null,
-                $description ?: null,
-                $serverLocation ?: null
+                $description ?: null
             ]);
             
             $projectId = $pdo->lastInsertId();
             header("Location: project.php?id=" . $projectId);
             exit();
+        } catch (Exception $e) {
+            // Handle general exceptions
+            $errors[] = $e->getMessage();
         } catch (PDOException $e) {
-            $errors[] = "Failed to create project. Please try again.";
+            // Log the actual error for debugging
+            error_log("Project creation error: " . $e->getMessage());
+            error_log("Error code: " . $e->getCode());
+            error_log("User ID from session: " . ($_SESSION['user_id'] ?? 'not set'));
+            
+            // Provide user-friendly error message based on the actual error
+            if ($e->getCode() == '23000') {
+                // This is typically a foreign key constraint violation
+                $errors[] = "Database constraint error. The user account may not exist in the database.";
+                $errors[] = "Current user ID: " . ($_SESSION['user_id'] ?? 'not set');
+            } else if ($e->getCode() == '42S02') {
+                $errors[] = "Database table not found. Please ensure the database is properly set up.";
+            } else if ($e->getCode() == 'HY000') {
+                $errors[] = "Database error. Please check your database connection settings.";
+            } else {
+                $errors[] = "Failed to create project. Error: " . $e->getMessage();
+            }
         }
     }
 }
@@ -96,14 +131,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            value="<?php echo htmlspecialchars($_POST['project_url'] ?? ''); ?>"
                            placeholder="https://example.com">
                     <small>Optional: The URL of your project website</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="server_location">Server Location</label>
-                    <input type="text" id="server_location" name="server_location" 
-                           value="<?php echo htmlspecialchars($_POST['server_location'] ?? ''); ?>"
-                           placeholder="e.g., US East, Europe, Singapore">
-                    <small>Optional: Geographic location of your server</small>
                 </div>
                 
                 <div class="form-group">

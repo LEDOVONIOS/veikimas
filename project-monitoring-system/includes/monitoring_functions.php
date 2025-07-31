@@ -176,11 +176,181 @@ function getResponseTimeStats($pdo, $projectId, $hours = 24) {
 }
 
 /**
+ * Get last checked timestamp for a project
+ */
+function getLastChecked($pdo, $projectId) {
+    try {
+        $stmt = $pdo->prepare("SELECT last_checked FROM projects WHERE id = ?");
+        $stmt->execute([$projectId]);
+        $result = $stmt->fetch();
+        return $result ? $result['last_checked'] : null;
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
+/**
+ * Update last checked timestamp
+ */
+function updateLastChecked($pdo, $projectId) {
+    try {
+        $stmt = $pdo->prepare("UPDATE projects SET last_checked = NOW() WHERE id = ?");
+        $stmt->execute([$projectId]);
+        return true;
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
+/**
+ * Get cron jobs for a project
+ */
+function getCronJobs($pdo, $projectId) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT * FROM cron_jobs 
+            WHERE project_id = ?
+            ORDER BY job_name
+        ");
+        $stmt->execute([$projectId]);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/**
+ * Add or update cron job
+ */
+function updateCronJob($pdo, $projectId, $jobName, $schedule, $status = 'pending', $errorMessage = null) {
+    try {
+        // Calculate next run time based on cron expression
+        $nextRun = calculateNextCronRun($schedule);
+        
+        $stmt = $pdo->prepare("
+            INSERT INTO cron_jobs (project_id, job_name, schedule, status, next_run, error_message)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+                schedule = VALUES(schedule),
+                status = VALUES(status),
+                last_run = CASE WHEN VALUES(status) != 'pending' THEN NOW() ELSE last_run END,
+                next_run = VALUES(next_run),
+                error_message = VALUES(error_message),
+                updated_at = NOW()
+        ");
+        $stmt->execute([$projectId, $jobName, $schedule, $status, $nextRun, $errorMessage]);
+        return true;
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
+/**
+ * Calculate next cron run time (simplified)
+ */
+function calculateNextCronRun($schedule) {
+    // This is a simplified implementation
+    // In production, use a proper cron expression parser
+    $now = new DateTime();
+    
+    // Common patterns
+    if ($schedule === '*/5 * * * *') {
+        $now->modify('+5 minutes');
+    } elseif ($schedule === '0 * * * *') {
+        $now->modify('+1 hour');
+        $now->setTime($now->format('H'), 0, 0);
+    } elseif ($schedule === '0 0 * * *') {
+        $now->modify('+1 day');
+        $now->setTime(0, 0, 0);
+    } else {
+        // Default to 1 hour
+        $now->modify('+1 hour');
+    }
+    
+    return $now->format('Y-m-d H:i:s');
+}
+
+/**
+ * Send notification
+ */
+function sendNotification($pdo, $userId, $projectId, $type, $title, $message) {
+    try {
+        // Check notification settings
+        $stmt = $pdo->prepare("
+            SELECT * FROM notification_settings 
+            WHERE user_id = ? AND project_id = ?
+        ");
+        $stmt->execute([$userId, $projectId]);
+        $settings = $stmt->fetch();
+        
+        // Default to all notifications enabled if no settings exist
+        if (!$settings) {
+            $settings = [
+                'notify_on_down' => true,
+                'notify_on_ssl_expiry' => true,
+                'notify_on_domain_expiry' => true,
+                'notify_on_cron_failure' => true
+            ];
+        }
+        
+        // Check if this type of notification is enabled
+        $shouldNotify = match($type) {
+            'down', 'up' => $settings['notify_on_down'],
+            'ssl_expiry' => $settings['notify_on_ssl_expiry'],
+            'domain_expiry' => $settings['notify_on_domain_expiry'],
+            'cron_failed' => $settings['notify_on_cron_failure'],
+            default => true
+        };
+        
+        if (!$shouldNotify) {
+            return false;
+        }
+        
+        // Insert notification
+        $stmt = $pdo->prepare("
+            INSERT INTO notifications (user_id, project_id, type, title, message)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$userId, $projectId, $type, $title, $message]);
+        
+        // TODO: Send email notification if enabled
+        // if ($settings['email_notifications']) {
+        //     sendEmailNotification($userId, $title, $message);
+        // }
+        
+        return true;
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
+/**
+ * Get unread notifications count
+ */
+function getUnreadNotificationsCount($pdo, $userId) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as count 
+            FROM notifications 
+            WHERE user_id = ? AND is_read = FALSE
+        ");
+        $stmt->execute([$userId]);
+        $result = $stmt->fetch();
+        return $result['count'];
+    } catch (PDOException $e) {
+        return 0;
+    }
+}
+
+/**
  * Generate mock monitoring data for a project
  */
 function generateMockData($pdo, $projectId) {
     try {
         $now = new DateTime();
+        
+        // Update last checked timestamp
+        updateLastChecked($pdo, $projectId);
         
         // Generate uptime logs for the last 30 days (every 5 minutes)
         for ($days = 30; $days >= 0; $days--) {
@@ -260,6 +430,32 @@ function generateMockData($pdo, $projectId) {
                 ");
                 $stmt->execute([$projectId, max(20, $responseTime), $measureTime->format('Y-m-d H:i:s')]);
             }
+        }
+        
+        // Generate cron job data
+        $cronJobs = [
+            ['Database Backup', '0 2 * * *', 'success', null],
+            ['Cache Clear', '0 */6 * * *', 'success', null],
+            ['Report Generation', '0 9 * * 1', 'failed', 'Failed to connect to email server'],
+            ['SSL Certificate Check', '0 0 * * *', 'success', null]
+        ];
+        
+        foreach ($cronJobs as $job) {
+            $lastRun = clone $now;
+            $lastRun->modify('-' . rand(1, 24) . ' hours');
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO cron_jobs (project_id, job_name, schedule, status, last_run, next_run, error_message)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE 
+                    status = VALUES(status),
+                    last_run = VALUES(last_run),
+                    next_run = VALUES(next_run),
+                    error_message = VALUES(error_message)
+            ");
+            
+            $nextRun = calculateNextCronRun($job[1]);
+            $stmt->execute([$projectId, $job[0], $job[1], $job[2], $lastRun->format('Y-m-d H:i:s'), $nextRun, $job[3]]);
         }
         
         return true;

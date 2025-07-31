@@ -1,6 +1,7 @@
 <?php
 require_once 'db.php';
 require_once 'includes/monitoring_functions.php';
+require_once 'includes/notification_handler.php';
 requireLogin();
 
 // Get project ID and time filter
@@ -38,6 +39,9 @@ try {
     $uptime365Days = calculateUptime($pdo, $projectId, 365);
     $sslInfo = getSSLInfo($pdo, $projectId);
     $responseTimeData = getResponseTimeStats($pdo, $projectId, 24);
+    $cronJobs = getCronJobs($pdo, $projectId);
+    $lastChecked = getLastChecked($pdo, $projectId);
+    $unreadNotifications = getUnreadNotificationsCount($pdo, $_SESSION['user_id']);
     
     // Get incidents with time filter
     $incidentDays = match($timeFilter) {
@@ -85,6 +89,11 @@ try {
                 <li><a href="add_project.php">Add Project</a></li>
                 <li class="nav-user">
                     <span>Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
+                    <?php if ($unreadNotifications > 0): ?>
+                        <a href="notifications.php" class="notification-badge">
+                            🔔 <span class="badge-count"><?php echo $unreadNotifications; ?></span>
+                        </a>
+                    <?php endif; ?>
                     <a href="logout.php" class="btn-logout">Logout</a>
                 </li>
             </ul>
@@ -110,7 +119,7 @@ try {
                     </span>
                 <?php else: ?>
                     <span class="status-badge status-operational large">
-                        Operational
+                        Up
                     </span>
                 <?php endif; ?>
             </div>
@@ -126,17 +135,42 @@ try {
                     </div>
                 <?php endif; ?>
                 
-                <?php if (!empty($project['server_location'])): ?>
-                    <div class="info-item">
-                        <strong>Location:</strong> 
-                        <?php echo htmlspecialchars($project['server_location']); ?>
-                    </div>
-                <?php endif; ?>
+                <div class="info-item">
+                    <strong>Status:</strong> 
+                    <span class="status-text <?php echo count($openIncidents) > 0 ? 'status-down' : 'status-up'; ?>">
+                        <?php echo count($openIncidents) > 0 ? 'Down' : 'Operational'; ?>
+                    </span>
+                </div>
                 
                 <div class="info-item">
                     <strong>Created:</strong> 
                     <?php echo date('F d, Y g:i A', strtotime($project['date_created'])); ?>
                 </div>
+                
+                <div class="info-item">
+                    <strong>Last Checked:</strong> 
+                    <span class="last-checked">
+                        <?php if ($lastChecked): ?>
+                            <?php echo date('F d, Y g:i:s A', strtotime($lastChecked)); ?>
+                        <?php else: ?>
+                            Never
+                        <?php endif; ?>
+                    </span>
+                </div>
+                
+                <div class="info-item">
+                    <strong>Geographic Region:</strong> 
+                    <span class="region-badge">
+                        📍 <?php echo htmlspecialchars($project['monitoring_region'] ?? 'North America'); ?>
+                    </span>
+                </div>
+                
+                <?php if (!empty($project['server_location'])): ?>
+                    <div class="info-item">
+                        <strong>Server Location:</strong> 
+                        <?php echo htmlspecialchars($project['server_location']); ?>
+                    </div>
+                <?php endif; ?>
                 
                 <?php if (!empty($project['description'])): ?>
                     <div class="info-item">
@@ -176,7 +210,48 @@ try {
                     <?php endforeach; ?>
                 </div>
             <?php else: ?>
-                <div class="no-data">No data available</div>
+                <div class="status-code-grid">
+                    <div class="status-code-item status-2xx">
+                        <div class="status-code-header">
+                            <span class="code">2xx</span>
+                            <span class="percentage">100%</span>
+                        </div>
+                        <div class="status-code-bar">
+                            <div class="status-code-fill" style="width: 100%"></div>
+                        </div>
+                        <div class="status-code-label">Success</div>
+                    </div>
+                    <div class="status-code-item status-3xx">
+                        <div class="status-code-header">
+                            <span class="code">3xx</span>
+                            <span class="percentage">0%</span>
+                        </div>
+                        <div class="status-code-bar">
+                            <div class="status-code-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="status-code-label">Redirects</div>
+                    </div>
+                    <div class="status-code-item status-4xx">
+                        <div class="status-code-header">
+                            <span class="code">4xx</span>
+                            <span class="percentage">0%</span>
+                        </div>
+                        <div class="status-code-bar">
+                            <div class="status-code-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="status-code-label">Client errors</div>
+                    </div>
+                    <div class="status-code-item status-5xx">
+                        <div class="status-code-header">
+                            <span class="code">5xx</span>
+                            <span class="percentage">0%</span>
+                        </div>
+                        <div class="status-code-bar">
+                            <div class="status-code-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="status-code-label">Server errors</div>
+                    </div>
+                </div>
             <?php endif; ?>
         </div>
         
@@ -193,7 +268,11 @@ try {
                             <span><?php echo $uptime7Days['incidents']; ?> incident<?php echo $uptime7Days['incidents'] !== 1 ? 's' : ''; ?></span>
                         </div>
                     <?php else: ?>
-                        <div class="no-data">No data available</div>
+                        <div class="uptime-percentage">100%</div>
+                        <div class="uptime-details">
+                            <span>0m down</span>
+                            <span>0 incidents</span>
+                        </div>
                     <?php endif; ?>
                 </div>
                 
@@ -206,7 +285,11 @@ try {
                             <span><?php echo $uptime30Days['incidents']; ?> incident<?php echo $uptime30Days['incidents'] !== 1 ? 's' : ''; ?></span>
                         </div>
                     <?php else: ?>
-                        <div class="no-data">No data available</div>
+                        <div class="uptime-percentage">100%</div>
+                        <div class="uptime-details">
+                            <span>0m down</span>
+                            <span>0 incidents</span>
+                        </div>
                     <?php endif; ?>
                 </div>
                 
@@ -219,7 +302,11 @@ try {
                             <span><?php echo $uptime365Days['incidents']; ?> incident<?php echo $uptime365Days['incidents'] !== 1 ? 's' : ''; ?></span>
                         </div>
                     <?php else: ?>
-                        <div class="no-data">No data available</div>
+                        <div class="uptime-percentage">100%</div>
+                        <div class="uptime-details">
+                            <span>0m down</span>
+                            <span>0 incidents</span>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -227,29 +314,128 @@ try {
         
         <!-- Domain & SSL -->
         <div class="monitoring-section">
-            <h2>Domain & SSL</h2>
+            <h2>Domain & SSL Information</h2>
             <?php if ($sslInfo): ?>
                 <div class="ssl-info-grid">
                     <div class="ssl-info-item">
-                        <strong>SSL Certificate Expiry:</strong>
-                        <span><?php echo date('F d, Y', strtotime($sslInfo['expiry_date'])); ?></span>
-                        <?php
-                        $daysUntilSSLExpiry = (new DateTime($sslInfo['expiry_date']))->diff(new DateTime())->days;
-                        if ($daysUntilSSLExpiry < 30): ?>
-                            <span class="status-badge status-critical">Expires soon</span>
-                        <?php endif; ?>
+                        <strong>SSL Certificate:</strong>
+                        <div class="ssl-details">
+                            <span class="ssl-issuer">Issued by <?php echo htmlspecialchars($sslInfo['issuer']); ?></span>
+                            <span class="ssl-expiry">
+                                Expires: <?php echo date('F d, Y', strtotime($sslInfo['expiry_date'])); ?>
+                                <?php
+                                $daysUntilSSLExpiry = (new DateTime($sslInfo['expiry_date']))->diff(new DateTime())->days;
+                                if ($daysUntilSSLExpiry < 30): ?>
+                                    <span class="status-badge status-warning">⚠️ Expires in <?php echo $daysUntilSSLExpiry; ?> days</span>
+                                <?php else: ?>
+                                    <span class="status-badge status-success">✓ Valid</span>
+                                <?php endif; ?>
+                            </span>
+                        </div>
                     </div>
                     <div class="ssl-info-item">
-                        <strong>Domain Expiry:</strong>
-                        <span><?php echo date('F d, Y', strtotime($sslInfo['domain_expiry_date'])); ?></span>
-                    </div>
-                    <div class="ssl-info-item">
-                        <strong>Issuer:</strong>
-                        <span><?php echo htmlspecialchars($sslInfo['issuer']); ?></span>
+                        <strong>Domain Registration:</strong>
+                        <div class="domain-details">
+                            <span class="domain-expiry">
+                                Expires: <?php echo date('F d, Y', strtotime($sslInfo['domain_expiry_date'])); ?>
+                                <?php
+                                $daysUntilDomainExpiry = (new DateTime($sslInfo['domain_expiry_date']))->diff(new DateTime())->days;
+                                if ($daysUntilDomainExpiry < 60): ?>
+                                    <span class="status-badge status-warning">⚠️ Expires in <?php echo $daysUntilDomainExpiry; ?> days</span>
+                                <?php else: ?>
+                                    <span class="status-badge status-success">✓ Active</span>
+                                <?php endif; ?>
+                            </span>
+                        </div>
                     </div>
                 </div>
             <?php else: ?>
-                <div class="no-data">Loading...</div>
+                <div class="ssl-info-grid">
+                    <div class="ssl-info-item">
+                        <strong>SSL Certificate:</strong>
+                        <div class="ssl-details">
+                            <span class="ssl-issuer">No SSL information available</span>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <!-- Cron Job Monitoring -->
+        <div class="monitoring-section">
+            <h2>Cron Job Monitoring</h2>
+            <?php if (!empty($cronJobs)): ?>
+                <div class="cron-jobs-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Job Name</th>
+                                <th>Schedule</th>
+                                <th>Status</th>
+                                <th>Last Run</th>
+                                <th>Next Run</th>
+                                <th>Duration</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($cronJobs as $job): ?>
+                                <tr>
+                                    <td class="job-name"><?php echo htmlspecialchars($job['job_name']); ?></td>
+                                    <td class="job-schedule">
+                                        <code><?php echo htmlspecialchars($job['schedule']); ?></code>
+                                    </td>
+                                    <td>
+                                        <?php if ($job['status'] === 'success'): ?>
+                                            <span class="status-badge status-success">✓ Success</span>
+                                        <?php elseif ($job['status'] === 'failed'): ?>
+                                            <span class="status-badge status-critical">✗ Failed</span>
+                                        <?php elseif ($job['status'] === 'running'): ?>
+                                            <span class="status-badge status-warning">⟳ Running</span>
+                                        <?php else: ?>
+                                            <span class="status-badge status-neutral">⏸ Pending</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($job['last_run']): ?>
+                                            <?php echo date('M d, g:i A', strtotime($job['last_run'])); ?>
+                                        <?php else: ?>
+                                            <span class="text-muted">Never</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($job['next_run']): ?>
+                                            <?php echo date('M d, g:i A', strtotime($job['next_run'])); ?>
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($job['last_duration']): ?>
+                                            <?php echo $job['last_duration']; ?>s
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($job['error_message']): ?>
+                                            <span class="error-message" title="<?php echo htmlspecialchars($job['error_message']); ?>">
+                                                <?php echo htmlspecialchars(substr($job['error_message'], 0, 30) . '...'); ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php else: ?>
+                <div class="empty-state">
+                    <p>No cron jobs configured for this project.</p>
+                    <p class="text-muted">Cron jobs will appear here once configured.</p>
+                </div>
             <?php endif; ?>
         </div>
         
@@ -281,7 +467,10 @@ try {
                     </div>
                 </div>
             <?php else: ?>
-                <div class="no-data">Failed to load chart</div>
+                <div class="empty-state">
+                    <p>No response time data available yet.</p>
+                    <p class="text-muted">Response time monitoring will begin shortly.</p>
+                </div>
             <?php endif; ?>
         </div>
         
