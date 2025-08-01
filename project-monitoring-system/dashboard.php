@@ -1,6 +1,14 @@
 <?php
 require_once 'db.php';
+require_once 'includes/roles.php';
 requireLogin();
+
+// Get user role and URL information
+$userId = $_SESSION['user_id'];
+$userRole = getUserRole($userId);
+$urlCount = getUserUrlCount($userId);
+$urlLimit = getUserUrlLimit($userId);
+$remainingUrls = getRemainingUrlSlots($userId);
 
 // Get user's projects
 try {
@@ -37,8 +45,11 @@ try {
             <ul class="nav-menu">
                 <li><a href="dashboard.php" class="active">Home</a></li>
                 <li><a href="add_project.php">Add Project</a></li>
+                <?php if (isAdmin()): ?>
+                    <li><a href="admin/manage-users.php">Manage Users</a></li>
+                <?php endif; ?>
                 <li class="nav-user">
-                    <span>Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
+                    <span>Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?> (<?php echo $userRole['name']; ?>)</span>
                     <a href="logout.php" class="btn-logout">Logout</a>
                 </li>
             </ul>
@@ -52,6 +63,19 @@ try {
                 <span class="btn-icon">+</span> Add New Project
             </a>
         </div>
+        
+        <?php if ($userRole['name'] === 'Customer'): ?>
+            <div class="url-limit-info" style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <p style="margin: 0;">
+                    <strong>URL Limit:</strong> You have used <?php echo $urlCount; ?> out of <?php echo $urlLimit; ?> URLs. 
+                    <?php if ($remainingUrls > 0): ?>
+                        (<?php echo $remainingUrls; ?> remaining)
+                    <?php else: ?>
+                        <span style="color: #dc3545;">(Limit reached)</span>
+                    <?php endif; ?>
+                </p>
+            </div>
+        <?php endif; ?>
 
         <?php if (empty($projects)): ?>
             <div class="empty-state">

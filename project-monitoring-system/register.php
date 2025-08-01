@@ -49,8 +49,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         try {
             $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password_hash) VALUES (?, ?, ?)");
-            $stmt->execute([$fullName, $email, $passwordHash]);
+            
+            // Get Customer role ID
+            $roleStmt = $pdo->prepare("SELECT id FROM roles WHERE name = 'Customer'");
+            $roleStmt->execute();
+            $customerRole = $roleStmt->fetch();
+            $roleId = $customerRole ? $customerRole['id'] : null;
+            
+            $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password_hash, role_id) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$fullName, $email, $passwordHash, $roleId]);
             $success = true;
         } catch (PDOException $e) {
             $errors[] = "Registration failed. Please try again.";
