@@ -1089,3 +1089,104 @@ table tr:hover {
         font-size: 0.875rem;
     }
 }
+
+/* Website Response Time Section */
+.response-time-container {
+    position: relative;
+    background: var(--bg-dark);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+
+.time-range-selector {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    z-index: 10;
+}
+
+.time-range-selector select {
+    background: var(--bg-darker);
+    color: var(--text-light);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.time-range-selector select:hover {
+    border-color: var(--primary-color);
+}
+
+.time-range-selector select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+#responseTimeChart {
+    max-width: 100%;
+    height: auto !important;
+    margin-top: 3rem;
+}
+
+/* Response Time Statistics */
+.response-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.stat-box {
+    background: var(--bg-darker);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stat-box:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.stat-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: var(--primary-color);
+}
+
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-light);
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Responsive Design for Response Time Section */
+@media (max-width: 768px) {
+    .response-stats {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .time-range-selector {
+        position: static;
+        margin-bottom: 1rem;
+        text-align: right;
+    }
+    
+    #responseTimeChart {
+        margin-top: 1rem;
+    }
+}
