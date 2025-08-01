@@ -227,8 +227,9 @@ $totalPages = ceil($totalUsers / $perPage);
     <main class="admin-container">
         <div class="admin-header">
             <h1>Manage Users</h1>
-            <div>
-                Total Users: <?php echo $totalUsers; ?>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <span>Total Users: <?php echo $totalUsers; ?></span>
+                <a href="create-user.php" class="btn btn-primary">Create New User</a>
             </div>
         </div>
         
