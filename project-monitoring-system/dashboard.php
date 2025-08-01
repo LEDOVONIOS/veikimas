@@ -1,6 +1,12 @@
 <?php
 require_once 'db.php';
+require_once 'includes/role_functions.php';
 requireLogin();
+
+// Get user role information
+$userInfo = getUserRole($pdo, $_SESSION['user_id']);
+$currentUrlCount = getUserUrlCount($pdo, $_SESSION['user_id']);
+$remainingSlots = getRemainingUrlSlots($pdo, $_SESSION['user_id']);
 
 // Get user's projects
 try {
@@ -52,6 +58,22 @@ try {
                 <span class="btn-icon">+</span> Add New Project
             </a>
         </div>
+        
+        <?php if ($userInfo && $userInfo['role_name'] !== 'Admin'): ?>
+        <div class="dashboard-info" style="margin-bottom: 2rem;">
+            <div class="info-card" style="background: var(--surface); padding: 1.5rem; border-radius: 0.5rem; box-shadow: var(--shadow-sm);">
+                <h3 style="margin-bottom: 1rem; color: var(--text-primary);">Account Information</h3>
+                <p><strong>Role:</strong> <?php echo htmlspecialchars($userInfo['role_name']); ?></p>
+                <p><strong>URLs Used:</strong> <?php echo $currentUrlCount; ?> / <?php echo $userInfo['effective_url_limit']; ?></p>
+                <div class="url-progress" style="margin-top: 0.5rem; width: 100%; height: 8px; background: #E5E7EB; border-radius: 999px; overflow: hidden;">
+                    <div class="url-progress-bar" style="width: <?php echo min(100, ($currentUrlCount / $userInfo['effective_url_limit']) * 100); ?>%; height: 100%; background: <?php echo $currentUrlCount >= $userInfo['effective_url_limit'] ? '#EF4444' : '#10B981'; ?>; transition: width 0.3s;"></div>
+                </div>
+                <?php if ($remainingSlots <= 0): ?>
+                    <p style="margin-top: 0.5rem; color: #EF4444;">You have reached your URL limit. Contact support at info@seorocket.lt to increase your limit.</p>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <?php if (empty($projects)): ?>
             <div class="empty-state">

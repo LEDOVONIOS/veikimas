@@ -36,6 +36,9 @@
  *   • Cron job failures
  * - UptimeRobot-style visual design
  * - Notification center with badge count
+ * - User roles system with Admin and Customer roles
+ * - URL limits per role/user
+ * - Role-based permissions
  * 
  * SYSTEM REQUIREMENTS:
  * - PHP 8.0 or higher (uses match expressions)
@@ -64,6 +67,12 @@
  *       - Cron jobs
  *       - Notifications
  *       - Notification settings
+ *    l) ALSO RUN db_roles.sql to add the roles system
+ *       This includes:
+ *       - Roles table (Admin, Customer)
+ *       - Permissions system
+ *       - URL limits per role
+ *       - User role assignments
  * 
  * 2. FILE UPLOAD:
  *    a) Use File Manager or FTP to access your public_html directory
@@ -157,8 +166,85 @@
  *       - Generate notifications
  *       - Monitor SSL/domain expiry
  *       - Check cron job statuses
+ *       - Collect website response time data
  * 
- * G. VISUAL ENHANCEMENTS:
+ * DETAILED CRON JOB SETUP:
+ * 
+ * For Hostinger Shared Hosting:
+ * 1. Log into your Hostinger control panel
+ * 2. Navigate to Advanced → Cron Jobs
+ * 3. Click "Add New Cron Job"
+ * 4. Configure as follows:
+ *    - Type: Choose "Every 5 minutes" from dropdown OR use custom: */5 * * * *
+ *    - Command: /usr/bin/php /home/YOUR_USERNAME/public_html/project-monitor/includes/monitoring_handler.php
+ *    - Replace YOUR_USERNAME with your actual hosting username
+ *    - Adjust the path if your installation is in a different directory
+ * 5. Click "Create" to save the cron job
+ * 
+ * For cPanel-based Hosting:
+ * 1. Log into cPanel
+ * 2. Find "Cron Jobs" under Advanced section
+ * 3. Add a new cron job with:
+ *    - Minute: */5
+ *    - Hour: *
+ *    - Day: *
+ *    - Month: *
+ *    - Weekday: *
+ *    - Command: /usr/local/bin/php /home/YOUR_USERNAME/public_html/project-monitor/includes/monitoring_handler.php
+ * 
+ * Alternative Commands (if the above don't work):
+ * - wget -q -O /dev/null https://yourdomain.com/project-monitor/includes/monitoring_handler.php
+ * - curl -s https://yourdomain.com/project-monitor/includes/monitoring_handler.php > /dev/null
+ * 
+ * IMPORTANT NOTES:
+ * - The monitoring handler script should be created to:
+ *   • Check website availability
+ *   • Measure response times
+ *   • Store results in the response_times table
+ *   • Generate notifications for downtime
+ *   • Update last_checked timestamps
+ * - Ensure the script has proper database credentials
+ * - Set appropriate execution permissions (644 or 755)
+ * - Monitor cron job execution logs for errors
+ * - Response time data will populate the Website Response Time graph
+ * 
+ * G. USER ROLES & PERMISSIONS:
+ *    
+ * The system includes two default roles:
+ * 
+ * 1. ADMIN ROLE:
+ *    - Full system access
+ *    - Unlimited URL monitoring
+ *    - Can manage users and roles
+ *    - Access to all projects
+ *    - Can create custom roles
+ * 
+ * 2. CUSTOMER ROLE:
+ *    - Limited to own projects
+ *    - Default URL limit: 10
+ *    - Cannot access admin features
+ *    - URL limit can be customized
+ * 
+ * MANAGING ROLES (Admin only):
+ *    - Navigate to "Manage Roles" in the menu
+ *    - Create custom roles with specific URL limits
+ *    - Edit existing role limits
+ *    - Cannot delete system roles (Admin/Customer)
+ * 
+ * MANAGING USERS (Admin only):
+ *    - Navigate to "Manage Users" in the menu
+ *    - Assign roles to users
+ *    - Set custom URL limits per user
+ *    - Monitor URL usage with visual progress bars
+ *    - Search and filter users
+ * 
+ * URL LIMIT ENFORCEMENT:
+ *    - Users see their URL usage when adding projects
+ *    - Clear visual indicators of remaining slots
+ *    - Custom error message when limit exceeded
+ *    - Contact message: info@seorocket.lt
+ * 
+ * H. VISUAL ENHANCEMENTS:
  *    - UptimeRobot-inspired design
  *    - Clean status badges with colors
  *    - Hover effects and transitions

@@ -153,17 +153,28 @@ function getResponseTimeStats($pdo, $projectId, $hours = 24) {
     $startDate->modify("-{$hours} hours");
     
     try {
-        // Get hourly averages
+        // Determine grouping based on time range
+        if ($hours <= 24) {
+            // Group by hour for last 24 hours
+            $groupFormat = '%Y-%m-%d %H:00:00';
+        } elseif ($hours <= 168) { // 7 days
+            // Group by 4-hour intervals for last 7 days
+            $groupFormat = '%Y-%m-%d %H:00:00';
+        } else {
+            // Group by day for longer periods
+            $groupFormat = '%Y-%m-%d 00:00:00';
+        }
+        
         $stmt = $pdo->prepare("
             SELECT 
-                DATE_FORMAT(measured_at, '%Y-%m-%d %H:00:00') as hour,
+                DATE_FORMAT(measured_at, '{$groupFormat}') as hour,
                 AVG(response_time) as avg_time,
                 MIN(response_time) as min_time,
                 MAX(response_time) as max_time
             FROM response_times
             WHERE project_id = ? 
             AND measured_at BETWEEN ? AND ?
-            GROUP BY DATE_FORMAT(measured_at, '%Y-%m-%d %H:00:00')
+            GROUP BY DATE_FORMAT(measured_at, '{$groupFormat}')
             ORDER BY hour
         ");
         $stmt->execute([$projectId, $startDate->format('Y-m-d H:i:s'), $endDate->format('Y-m-d H:i:s')]);
