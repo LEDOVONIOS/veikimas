@@ -62,13 +62,23 @@ function escapeHtml(text) {
 
 // Function to render all project cards
 function renderProjects(projects) {
-    const grid = document.querySelector('.projects-grid');
+    const grid = document.getElementById('projectsGrid');
+    const emptyState = document.getElementById('emptyState');
+    
     grid.innerHTML = ''; // Clear existing cards
     
-    projects.forEach(project => {
-        const card = createProjectCard(project);
-        grid.appendChild(card);
-    });
+    if (projects.length === 0) {
+        emptyState.style.display = 'flex';
+        grid.style.display = 'none';
+    } else {
+        emptyState.style.display = 'none';
+        grid.style.display = 'grid';
+        
+        projects.forEach(project => {
+            const card = createProjectCard(project);
+            grid.appendChild(card);
+        });
+    }
 }
 
 // Function to add a new project (example implementation)
@@ -97,9 +107,78 @@ document.addEventListener('DOMContentLoaded', () => {
     // Render initial projects
     renderProjects(sampleProjects);
     
-    // Add event listener to the Add New Project button
-    const addButton = document.querySelector('.add-project-btn');
-    addButton.addEventListener('click', addNewProject);
+    // Get modal elements
+    const modal = document.getElementById('addProjectModal');
+    const addButton = document.getElementById('addProjectBtn');
+    const closeButton = document.getElementById('closeModal');
+    const cancelButton = document.getElementById('cancelAdd');
+    const form = document.getElementById('addProjectForm');
+    
+    // Function to open modal
+    function openModal() {
+        modal.style.display = 'flex';
+        document.getElementById('projectName').focus();
+    }
+    
+    // Function to close modal
+    function closeModal() {
+        modal.style.display = 'none';
+        form.reset();
+    }
+    
+    // Add event listeners
+    addButton.addEventListener('click', openModal);
+    closeButton.addEventListener('click', closeModal);
+    cancelButton.addEventListener('click', closeModal);
+    
+    // Close modal when clicking outside
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+    
+    // Handle form submission
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const newProject = {
+            id: Date.now(),
+            name: document.getElementById('projectName').value,
+            url: document.getElementById('projectUrl').value,
+            status: document.getElementById('projectStatus').value,
+            incidents: 0,
+            createdDate: new Date().toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric' 
+            })
+        };
+        
+        sampleProjects.push(newProject);
+        renderProjects(sampleProjects);
+        closeModal();
+        
+        // Check if we should hide empty state
+        updateEmptyState();
+    });
+    
+    // Function to update empty state visibility
+    function updateEmptyState() {
+        const emptyState = document.getElementById('emptyState');
+        const projectsGrid = document.getElementById('projectsGrid');
+        
+        if (sampleProjects.length === 0) {
+            emptyState.style.display = 'flex';
+            projectsGrid.style.display = 'none';
+        } else {
+            emptyState.style.display = 'none';
+            projectsGrid.style.display = 'grid';
+        }
+    }
+    
+    // Initial empty state check
+    updateEmptyState();
 });
 
 // Example function to update project status dynamically
