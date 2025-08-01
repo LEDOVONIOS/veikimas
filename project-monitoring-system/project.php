@@ -39,6 +39,7 @@ try {
     $uptime365Days = calculateUptime($pdo, $projectId, 365);
     $sslInfo = getSSLInfo($pdo, $projectId);
     $responseTimeData = getResponseTimeStats($pdo, $projectId, 24);
+    $responseTimeChartData = getResponseTimeData($pdo, $projectId, '24h');
     $cronJobs = getCronJobs($pdo, $projectId);
     $lastChecked = getLastChecked($pdo, $projectId);
     $unreadNotifications = getUnreadNotificationsCount($pdo, $_SESSION['user_id']);
@@ -361,6 +362,41 @@ try {
             <?php endif; ?>
         </div>
         
+        <!-- Website Response Time -->
+        <div class="monitoring-section">
+            <h2>Website Response Time</h2>
+            <div class="response-time-container">
+                <div class="time-range-selector">
+                    <select id="timeRangeSelect" onchange="updateResponseTimeChart()">
+                        <option value="1h">Last hour</option>
+                        <option value="24h" selected>Last 24 hours</option>
+                        <option value="7d">Last 7 days</option>
+                        <option value="30d">Last 30 days</option>
+                    </select>
+                </div>
+                <canvas id="responseTimeChart" width="400" height="200"></canvas>
+                
+                <!-- Statistics Section -->
+                <div class="response-stats">
+                    <div class="stat-box">
+                        <div class="stat-icon">↻</div>
+                        <div class="stat-value" id="avgResponseTime">-</div>
+                        <div class="stat-label">Average</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-icon">↓</div>
+                        <div class="stat-value" id="minResponseTime">-</div>
+                        <div class="stat-label">Minimum</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-icon" style="color: #ff6b6b;">↑</div>
+                        <div class="stat-value" id="maxResponseTime">-</div>
+                        <div class="stat-label">Maximum</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Cron Job Monitoring -->
         <div class="monitoring-section">
             <h2>Cron Job Monitoring</h2>
@@ -529,61 +565,154 @@ try {
         </div>
     </main>
     
-    <?php if ($responseTimeData && count($responseTimeData) > 0): ?>
     <script>
-        // Response Time Chart
-        const ctx = document.getElementById('responseTimeChart').getContext('2d');
-        const responseTimeChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: <?php echo json_encode(array_map(function($d) {
-                    return date('H:i', strtotime($d['hour']));
-                }, $responseTimeData)); ?>,
+        let responseTimeChart = null;
+        const projectId = <?php echo $projectId; ?>;
+        
+        // Format the response time data
+        function formatResponseTimeData(data) {
+            if (!data || !data.data || data.data.length === 0) {
+                return {
+                    labels: [],
+                    datasets: []
+                };
+            }
+            
+            // Format labels based on time range
+            const labels = data.data.map(item => {
+                const date = new Date(item.measured_at);
+                const timeRange = data.timeRange || '24h';
+                
+                if (timeRange === '1h' || timeRange === '24h') {
+                    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                } else if (timeRange === '7d') {
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else {
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }
+            });
+            
+            const values = data.data.map(item => item.response_time);
+            
+            return {
+                labels: labels,
                 datasets: [{
-                    label: 'Average Response Time',
-                    data: <?php echo json_encode(array_column($responseTimeData, 'avg_time')); ?>,
-                    borderColor: '#4F46E5',
-                    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                    label: 'Response Time',
+                    data: values,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     tension: 0.3,
-                    fill: true
-                }, {
-                    label: 'Max Response Time',
-                    data: <?php echo json_encode(array_column($responseTimeData, 'max_time')); ?>,
-                    borderColor: '#EF4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    tension: 0.3,
-                    fill: false,
-                    borderDash: [5, 5]
+                    fill: true,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: '#10b981',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
                 }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'top',
+            };
+        }
+        
+        // Initialize the chart
+        function initResponseTimeChart() {
+            const ctx = document.getElementById('responseTimeChart');
+            if (!ctx) return;
+            
+            const chartData = <?php echo json_encode($responseTimeChartData); ?>;
+            const formattedData = formatResponseTimeData(chartData);
+            
+            responseTimeChart = new Chart(ctx, {
+                type: 'line',
+                data: formattedData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
                     },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return context.dataset.label + ': ' + Math.round(context.parsed.y) + 'ms';
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Response Time: ' + context.parsed.y + ' ms';
+                                }
                             }
                         }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return value + 'ms';
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#9ca3af',
+                                maxRotation: 45,
+                                minRotation: 0
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#9ca3af',
+                                callback: function(value) {
+                                    return value + ' ms';
+                                }
                             }
                         }
                     }
                 }
+            });
+            
+            // Update statistics
+            updateStatistics(chartData);
+        }
+        
+        // Update statistics
+        function updateStatistics(data) {
+            if (data && data.stats) {
+                document.getElementById('avgResponseTime').textContent = 
+                    data.stats.avg_time ? Math.round(data.stats.avg_time) + ' ms' : '-';
+                document.getElementById('minResponseTime').textContent = 
+                    data.stats.min_time ? Math.round(data.stats.min_time) + ' ms' : '-';
+                document.getElementById('maxResponseTime').textContent = 
+                    data.stats.max_time ? Math.round(data.stats.max_time) + ' ms' : '-';
             }
-        });
+        }
+        
+        // Update chart when time range changes
+        async function updateResponseTimeChart() {
+            const timeRange = document.getElementById('timeRangeSelect').value;
+            
+            try {
+                const response = await fetch(`api/get_response_time_data.php?project_id=${projectId}&time_range=${timeRange}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const formattedData = formatResponseTimeData(data.data);
+                    responseTimeChart.data = formattedData;
+                    responseTimeChart.update();
+                    updateStatistics(data.data);
+                }
+            } catch (error) {
+                console.error('Error updating chart:', error);
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', initResponseTimeChart);
     </script>
-    <?php endif; ?>
 </body>
 </html>

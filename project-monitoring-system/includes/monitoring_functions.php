@@ -176,6 +176,70 @@ function getResponseTimeStats($pdo, $projectId, $hours = 24) {
 }
 
 /**
+ * Get response time data for chart visualization
+ */
+function getResponseTimeData($pdo, $projectId, $timeRange = '24h') {
+    try {
+        $endDate = new DateTime();
+        $startDate = clone $endDate;
+        
+        // Adjust start date based on time range
+        switch ($timeRange) {
+            case '1h':
+                $startDate->modify('-1 hour');
+                break;
+            case '24h':
+                $startDate->modify('-24 hours');
+                break;
+            case '7d':
+                $startDate->modify('-7 days');
+                break;
+            case '30d':
+                $startDate->modify('-30 days');
+                break;
+            default:
+                $startDate->modify('-24 hours');
+        }
+        
+        // Get response time data points
+        $stmt = $pdo->prepare("
+            SELECT 
+                response_time,
+                measured_at
+            FROM response_times
+            WHERE project_id = ? 
+            AND measured_at BETWEEN ? AND ?
+            ORDER BY measured_at ASC
+        ");
+        $stmt->execute([$projectId, $startDate->format('Y-m-d H:i:s'), $endDate->format('Y-m-d H:i:s')]);
+        
+        $data = $stmt->fetchAll();
+        
+        // Also get statistics
+        $stmt = $pdo->prepare("
+            SELECT 
+                AVG(response_time) as avg_time,
+                MIN(response_time) as min_time,
+                MAX(response_time) as max_time
+            FROM response_times
+            WHERE project_id = ? 
+            AND measured_at BETWEEN ? AND ?
+        ");
+        $stmt->execute([$projectId, $startDate->format('Y-m-d H:i:s'), $endDate->format('Y-m-d H:i:s')]);
+        $stats = $stmt->fetch();
+        
+        return [
+            'data' => $data,
+            'stats' => $stats,
+            'timeRange' => $timeRange
+        ];
+        
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
+/**
  * Get last checked timestamp for a project
  */
 function getLastChecked($pdo, $projectId) {
