@@ -837,6 +837,28 @@ table tr:hover {
     right: 1rem;
 }
 
+/* URL Limit Info */
+.url-limit-info {
+    background: #F3F4F6;
+    border: 1px solid #E5E7EB;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.url-limit-info p {
+    margin: 0.25rem 0;
+    color: #374151;
+}
+
+.text-success {
+    color: #10B981;
+}
+
+.text-danger {
+    color: #EF4444;
+}
+
 .time-range-selector {
     padding: 0.5rem 1rem;
     border: 1px solid var(--border-color);

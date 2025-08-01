@@ -36,6 +36,9 @@
  *   • Cron job failures
  * - UptimeRobot-style visual design
  * - Notification center with badge count
+ * - User roles system with Admin and Customer roles
+ * - URL limits per role/user
+ * - Role-based permissions
  * 
  * SYSTEM REQUIREMENTS:
  * - PHP 8.0 or higher (uses match expressions)
@@ -64,6 +67,12 @@
  *       - Cron jobs
  *       - Notifications
  *       - Notification settings
+ *    l) ALSO RUN db_roles.sql to add the roles system
+ *       This includes:
+ *       - Roles table (Admin, Customer)
+ *       - Permissions system
+ *       - URL limits per role
+ *       - User role assignments
  * 
  * 2. FILE UPLOAD:
  *    a) Use File Manager or FTP to access your public_html directory
@@ -199,7 +208,43 @@
  * - Monitor cron job execution logs for errors
  * - Response time data will populate the Website Response Time graph
  * 
- * G. VISUAL ENHANCEMENTS:
+ * G. USER ROLES & PERMISSIONS:
+ *    
+ * The system includes two default roles:
+ * 
+ * 1. ADMIN ROLE:
+ *    - Full system access
+ *    - Unlimited URL monitoring
+ *    - Can manage users and roles
+ *    - Access to all projects
+ *    - Can create custom roles
+ * 
+ * 2. CUSTOMER ROLE:
+ *    - Limited to own projects
+ *    - Default URL limit: 10
+ *    - Cannot access admin features
+ *    - URL limit can be customized
+ * 
+ * MANAGING ROLES (Admin only):
+ *    - Navigate to "Manage Roles" in the menu
+ *    - Create custom roles with specific URL limits
+ *    - Edit existing role limits
+ *    - Cannot delete system roles (Admin/Customer)
+ * 
+ * MANAGING USERS (Admin only):
+ *    - Navigate to "Manage Users" in the menu
+ *    - Assign roles to users
+ *    - Set custom URL limits per user
+ *    - Monitor URL usage with visual progress bars
+ *    - Search and filter users
+ * 
+ * URL LIMIT ENFORCEMENT:
+ *    - Users see their URL usage when adding projects
+ *    - Clear visual indicators of remaining slots
+ *    - Custom error message when limit exceeded
+ *    - Contact message: info@seorocket.lt
+ * 
+ * H. VISUAL ENHANCEMENTS:
  *    - UptimeRobot-inspired design
  *    - Clean status badges with colors
  *    - Hover effects and transitions

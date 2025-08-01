@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+require_once 'includes/role_functions.php';
 
 // Ensure session is started
 if (session_status() === PHP_SESSION_NONE) {
@@ -10,6 +11,7 @@ requireLogin();
 
 $errors = [];
 $success = false;
+$urlLimitExceeded = false;
 
 // Debug: Log session info
 error_log("Add Project - Session ID: " . session_id());
@@ -29,6 +31,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (!empty($projectUrl) && !filter_var($projectUrl, FILTER_VALIDATE_URL)) {
         $errors[] = "Please enter a valid URL.";
+    }
+    
+    // Check URL limit if URL is provided
+    if (!empty($projectUrl) && empty($errors)) {
+        if (!canAddMoreUrls($pdo, $_SESSION['user_id'])) {
+            $urlLimitExceeded = true;
+            $errors[] = "You have exceeded the allowed number of URLs. Please contact support at info@seorocket.lt.";
+        }
     }
     
     // Create project if no errors
@@ -108,6 +118,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <main class="container main-content">
         <div class="form-container">
             <h1>Add New Project</h1>
+            
+            <?php 
+            // Get user's URL limit info
+            $userInfo = getUserRole($pdo, $_SESSION['user_id']);
+            $currentUrlCount = getUserUrlCount($pdo, $_SESSION['user_id']);
+            $remainingSlots = getRemainingUrlSlots($pdo, $_SESSION['user_id']);
+            ?>
+            
+            <?php if ($userInfo && $userInfo['role_name'] !== 'Admin'): ?>
+                <div class="url-limit-info">
+                    <p>URLs used: <strong><?php echo $currentUrlCount; ?></strong> / <strong><?php echo $userInfo['effective_url_limit']; ?></strong></p>
+                    <?php if ($remainingSlots > 0): ?>
+                        <p class="text-success">You can add <?php echo $remainingSlots; ?> more URL<?php echo $remainingSlots > 1 ? 's' : ''; ?>.</p>
+                    <?php else: ?>
+                        <p class="text-danger">You have reached your URL limit.</p>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
             
             <?php if (!empty($errors)): ?>
                 <div class="alert alert-error">
