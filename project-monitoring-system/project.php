@@ -32,13 +32,16 @@ try {
         generateMockData($pdo, $projectId);
     }
     
+    // Get response time range from request
+    $responseTimeRange = isset($_GET['response_range']) ? intval($_GET['response_range']) : 24;
+    
     // Get monitoring data
     $statusCodeData = getStatusCodeDistribution($pdo, $projectId, 7);
     $uptime7Days = calculateUptime($pdo, $projectId, 7);
     $uptime30Days = calculateUptime($pdo, $projectId, 30);
     $uptime365Days = calculateUptime($pdo, $projectId, 365);
     $sslInfo = getSSLInfo($pdo, $projectId);
-    $responseTimeData = getResponseTimeStats($pdo, $projectId, 24);
+    $responseTimeData = getResponseTimeStats($pdo, $projectId, $responseTimeRange);
     $cronJobs = getCronJobs($pdo, $projectId);
     $lastChecked = getLastChecked($pdo, $projectId);
     $unreadNotifications = getUnreadNotificationsCount($pdo, $_SESSION['user_id']);
@@ -361,6 +364,52 @@ try {
             <?php endif; ?>
         </div>
         
+        <!-- Website Response Time -->
+        <div class="monitoring-section">
+            <h2>Website Response Time</h2>
+            <div class="response-time-controls">
+                <select id="responseTimeRange" class="time-range-selector">
+                    <option value="1">Last hour</option>
+                    <option value="24" selected>Last 24 hours</option>
+                    <option value="168">Last 7 days</option>
+                    <option value="720">Last 30 days</option>
+                </select>
+            </div>
+            <?php if ($responseTimeData && count($responseTimeData) > 0): ?>
+                <div class="chart-container">
+                    <canvas id="responseTimeChart"></canvas>
+                </div>
+                <div class="response-time-stats">
+                    <?php
+                    $allResponseTimes = array_column($responseTimeData, 'avg_time');
+                    $avgResponseTime = count($allResponseTimes) > 0 ? round(array_sum($allResponseTimes) / count($allResponseTimes)) : 0;
+                    $minResponseTime = count($allResponseTimes) > 0 ? round(min($allResponseTimes)) : 0;
+                    $maxResponseTime = count($allResponseTimes) > 0 ? round(max($allResponseTimes)) : 0;
+                    ?>
+                    <div class="stat-item">
+                        <div class="stat-icon">↻</div>
+                        <span class="stat-label">Average</span>
+                        <span class="stat-value"><?php echo $avgResponseTime; ?> ms</span>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon stat-icon-min">↓</div>
+                        <span class="stat-label">Minimum</span>
+                        <span class="stat-value"><?php echo $minResponseTime; ?> ms</span>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon stat-icon-max">↑</div>
+                        <span class="stat-label">Maximum</span>
+                        <span class="stat-value"><?php echo $maxResponseTime; ?> ms</span>
+                    </div>
+                </div>
+            <?php else: ?>
+                <div class="empty-state">
+                    <p>No response time data available yet.</p>
+                    <p class="text-muted">Response time monitoring will begin shortly.</p>
+                </div>
+            <?php endif; ?>
+        </div>
+        
         <!-- Cron Job Monitoring -->
         <div class="monitoring-section">
             <h2>Cron Job Monitoring</h2>
@@ -439,41 +488,6 @@ try {
             <?php endif; ?>
         </div>
         
-        <!-- Response Time Chart -->
-        <div class="monitoring-section">
-            <h2>Response Time (Last 24 Hours)</h2>
-            <?php if ($responseTimeData && count($responseTimeData) > 0): ?>
-                <div class="chart-container">
-                    <canvas id="responseTimeChart"></canvas>
-                </div>
-                <div class="response-time-stats">
-                    <?php
-                    $allResponseTimes = array_column($responseTimeData, 'avg_time');
-                    $avgResponseTime = count($allResponseTimes) > 0 ? round(array_sum($allResponseTimes) / count($allResponseTimes)) : 0;
-                    $minResponseTime = count($allResponseTimes) > 0 ? round(min($allResponseTimes)) : 0;
-                    $maxResponseTime = count($allResponseTimes) > 0 ? round(max($allResponseTimes)) : 0;
-                    ?>
-                    <div class="stat-item">
-                        <span class="stat-label">Average:</span>
-                        <span class="stat-value"><?php echo $avgResponseTime; ?>ms</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Minimum:</span>
-                        <span class="stat-value"><?php echo $minResponseTime; ?>ms</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Maximum:</span>
-                        <span class="stat-value"><?php echo $maxResponseTime; ?>ms</span>
-                    </div>
-                </div>
-            <?php else: ?>
-                <div class="empty-state">
-                    <p>No response time data available yet.</p>
-                    <p class="text-muted">Response time monitoring will begin shortly.</p>
-                </div>
-            <?php endif; ?>
-        </div>
-        
         <!-- Recent Incidents -->
         <div class="incidents-section">
             <div class="section-header">
@@ -536,24 +550,28 @@ try {
         const responseTimeChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: <?php echo json_encode(array_map(function($d) {
-                    return date('H:i', strtotime($d['hour']));
+                labels: <?php echo json_encode(array_map(function($d) use ($responseTimeRange) {
+                    $date = new DateTime($d['hour']);
+                    if ($responseTimeRange <= 24) {
+                        return $date->format('H:i');
+                    } elseif ($responseTimeRange <= 168) { // 7 days
+                        return $date->format('M d, H:i');
+                    } else {
+                        return $date->format('M d');
+                    }
                 }, $responseTimeData)); ?>,
                 datasets: [{
-                    label: 'Average Response Time',
+                    label: 'Response Time',
                     data: <?php echo json_encode(array_column($responseTimeData, 'avg_time')); ?>,
-                    borderColor: '#4F46E5',
-                    backgroundColor: 'rgba(79, 70, 229, 0.1)',
-                    tension: 0.3,
-                    fill: true
-                }, {
-                    label: 'Max Response Time',
-                    data: <?php echo json_encode(array_column($responseTimeData, 'max_time')); ?>,
-                    borderColor: '#EF4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    tension: 0.3,
-                    fill: false,
-                    borderDash: [5, 5]
+                    borderColor: '#10B981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: '#10B981',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
                 }]
             },
             options: {
@@ -561,12 +579,12 @@ try {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        position: 'top',
+                        display: false
                     },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return context.dataset.label + ': ' + Math.round(context.parsed.y) + 'ms';
+                                return 'Response Time: ' + Math.round(context.parsed.y) + ' ms';
                             }
                         }
                     }
@@ -576,13 +594,33 @@ try {
                         beginAtZero: true,
                         ticks: {
                             callback: function(value) {
-                                return value + 'ms';
-                            }
+                                return value + ' ms';
+                            },
+                            stepSize: 450
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
                         }
                     }
                 }
             }
         });
+        
+        // Handle time range selector
+        document.getElementById('responseTimeRange').addEventListener('change', function() {
+            const range = this.value;
+            window.location.href = '?id=<?php echo $projectId; ?>&response_range=' + range;
+        });
+        
+        // Set the current range in the selector
+        <?php if (isset($_GET['response_range'])): ?>
+        document.getElementById('responseTimeRange').value = '<?php echo $responseTimeRange; ?>';
+        <?php endif; ?>
     </script>
     <?php endif; ?>
 </body>

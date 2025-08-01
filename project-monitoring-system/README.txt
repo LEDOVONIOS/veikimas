@@ -157,6 +157,47 @@
  *       - Generate notifications
  *       - Monitor SSL/domain expiry
  *       - Check cron job statuses
+ *       - Collect website response time data
+ * 
+ * DETAILED CRON JOB SETUP:
+ * 
+ * For Hostinger Shared Hosting:
+ * 1. Log into your Hostinger control panel
+ * 2. Navigate to Advanced → Cron Jobs
+ * 3. Click "Add New Cron Job"
+ * 4. Configure as follows:
+ *    - Type: Choose "Every 5 minutes" from dropdown OR use custom: */5 * * * *
+ *    - Command: /usr/bin/php /home/YOUR_USERNAME/public_html/project-monitor/includes/monitoring_handler.php
+ *    - Replace YOUR_USERNAME with your actual hosting username
+ *    - Adjust the path if your installation is in a different directory
+ * 5. Click "Create" to save the cron job
+ * 
+ * For cPanel-based Hosting:
+ * 1. Log into cPanel
+ * 2. Find "Cron Jobs" under Advanced section
+ * 3. Add a new cron job with:
+ *    - Minute: */5
+ *    - Hour: *
+ *    - Day: *
+ *    - Month: *
+ *    - Weekday: *
+ *    - Command: /usr/local/bin/php /home/YOUR_USERNAME/public_html/project-monitor/includes/monitoring_handler.php
+ * 
+ * Alternative Commands (if the above don't work):
+ * - wget -q -O /dev/null https://yourdomain.com/project-monitor/includes/monitoring_handler.php
+ * - curl -s https://yourdomain.com/project-monitor/includes/monitoring_handler.php > /dev/null
+ * 
+ * IMPORTANT NOTES:
+ * - The monitoring handler script should be created to:
+ *   • Check website availability
+ *   • Measure response times
+ *   • Store results in the response_times table
+ *   • Generate notifications for downtime
+ *   • Update last_checked timestamps
+ * - Ensure the script has proper database credentials
+ * - Set appropriate execution permissions (644 or 755)
+ * - Monitor cron job execution logs for errors
+ * - Response time data will populate the Website Response Time graph
  * 
  * G. VISUAL ENHANCEMENTS:
  *    - UptimeRobot-inspired design

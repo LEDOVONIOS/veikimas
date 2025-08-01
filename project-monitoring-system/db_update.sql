@@ -110,5 +110,8 @@ CREATE TABLE IF NOT EXISTS `notification_settings` (
     CONSTRAINT `fk_settings_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Add current status column to projects table
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS current_status ENUM('up', 'down', 'unknown') DEFAULT 'unknown';
+
 -- Insert sample data for testing (optional - remove in production)
 -- This will be added via a separate script
