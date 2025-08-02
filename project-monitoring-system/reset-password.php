@@ -283,6 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid) {
             <?php if ($success): ?>
                 <div class="success-icon">✅</div>
                 <div class="auth-logo">
+                    <img src="https://uptime.seorocket.lt/images/seorocket.png" alt="SEO Rocket" style="max-width: 200px; height: auto; margin-bottom: 24px;">
                     <h1>Password Reset!</h1>
                 </div>
                 <div class="alert alert-success">
@@ -294,6 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid) {
                 </p>
             <?php elseif ($tokenValid): ?>
                 <div class="auth-logo">
+                    <img src="https://uptime.seorocket.lt/images/seorocket.png" alt="SEO Rocket" style="max-width: 200px; height: auto; margin-bottom: 24px;">
                     <h1>Reset Password</h1>
                 </div>
                 <p class="auth-subtitle">
@@ -340,6 +342,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid) {
                 </p>
             <?php else: ?>
                 <div class="auth-logo">
+                    <img src="https://uptime.seorocket.lt/images/seorocket.png" alt="SEO Rocket" style="max-width: 200px; height: auto; margin-bottom: 24px;">
                     <h1>Invalid Link</h1>
                 </div>
                 <?php if (!empty($errors)): ?>
