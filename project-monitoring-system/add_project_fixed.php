@@ -1,9 +1,11 @@
 <?php
 require_once 'db.php';
+require_once 'includes/roles.php';
 requireLogin();
 
 $errors = [];
 $success = false;
+$urlLimitMessage = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Sanitize inputs
@@ -20,6 +22,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (!empty($projectUrl) && !filter_var($projectUrl, FILTER_VALIDATE_URL)) {
         $errors[] = "Please enter a valid URL.";
+    }
+    
+    // Check URL limit for non-empty URLs
+    if (!empty($projectUrl) && !canAddMoreUrls($_SESSION['user_id'])) {
+        $errors[] = getUrlLimitExceededMessage();
+        $urlLimitMessage = true;
     }
     
     // Create project if no errors

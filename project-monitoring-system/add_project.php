@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+require_once 'includes/roles.php';
 
 // Ensure session is started
 if (session_status() === PHP_SESSION_NONE) {
@@ -10,6 +11,7 @@ requireLogin();
 
 $errors = [];
 $success = false;
+$urlLimitMessage = null;
 
 // Debug: Log session info
 error_log("Add Project - Session ID: " . session_id());
@@ -29,6 +31,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (!empty($projectUrl) && !filter_var($projectUrl, FILTER_VALIDATE_URL)) {
         $errors[] = "Please enter a valid URL.";
+    }
+    
+    // Check URL limit for non-empty URLs
+    if (!empty($projectUrl) && !canAddMoreUrls($_SESSION['user_id'])) {
+        $errors[] = getUrlLimitExceededMessage();
+        $urlLimitMessage = true;
     }
     
     // Create project if no errors
