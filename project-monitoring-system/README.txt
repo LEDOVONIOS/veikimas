@@ -29,6 +29,7 @@
  * - Last Checked timestamp tracking
  * - Geographic monitoring region display
  * - Cron job monitoring with status tracking
+ * - Automated monitoring via cron jobs
  * - Real-time notifications for:
  *   • Project down/up events
  *   • SSL certificate expiry warnings
@@ -148,15 +149,28 @@
  *    - Automatic alerts before expiration
  * 
  * F. SETTING UP AUTOMATED MONITORING:
- *    1) Create a cron job in Hostinger control panel
- *    2) Set it to run every 5 minutes
- *    3) Command: php /home/username/public_html/includes/notification_handler.php
- *    4) This will automatically:
- *       - Check project status
- *       - Update last checked timestamps
- *       - Generate notifications
- *       - Monitor SSL/domain expiry
- *       - Check cron job statuses
+ *    
+ *    Option 1 - Using the Setup Script (Recommended):
+ *    1) SSH into your server or use terminal
+ *    2) Navigate to project directory
+ *    3) Run: ./scripts/setup-cron.sh
+ *    4) Follow the interactive prompts
+ *    
+ *    Option 2 - Manual Setup:
+ *    1) Create a cron job in Hostinger control panel or via SSH
+ *    2) Set it to run every 5 minutes (recommended)
+ *    3) Command: php /home/username/public_html/scripts/monitor_projects.php
+ *    
+ *    The monitoring script will automatically:
+ *       - Check all project URLs for availability
+ *       - Measure and log response times
+ *       - Track HTTP status codes
+ *       - Monitor SSL certificate expiry
+ *       - Create/resolve incidents automatically
+ *       - Send email notifications for status changes
+ *       - Clean up old logs (>90 days)
+ *    
+ *    For detailed setup instructions, see CRON_SETUP.md
  * 
  * G. VISUAL ENHANCEMENTS:
  *    - UptimeRobot-inspired design
