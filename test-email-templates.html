@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Template Preview</title>
+    <style>
+        body {
+            background-color: #e5e5e5;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .template-section {
+            margin-bottom: 40px;
+        }
+        .template-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .template-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .placeholder-info {
+            background-color: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .placeholder-info h3 {
+            margin-top: 0;
+            color: #1a202c;
+        }
+        .placeholder-list {
+            list-style: none;
+            padding: 0;
+        }
+        .placeholder-list li {
+            padding: 5px 0;
+            color: #4a5568;
+        }
+        .placeholder-list code {
+            background-color: #e5e5e5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #dc2626;
+        }
+        iframe {
+            width: 100%;
+            height: 800px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Incident Monitoring Email Templates</h1>
+
+    <div class="placeholder-info">
+        <h3>Available Placeholders:</h3>
+        <ul class="placeholder-list">
+            <li><code>{{user_name}}</code> - Recipient's full name</li>
+            <li><code>{{monitor_name}}</code> - Monitor name (clickable URL)</li>
+            <li><code>{{monitor_url}}</code> - URL to monitor details page</li>
+            <li><code>{{checked_url}}</code> - Full checked URL</li>
+            <li><code>{{root_cause}}</code> - Root cause of the incident</li>
+            <li><code>{{incident_start}}</code> - When the incident started</li>
+            <li><code>{{incident_resolved}}</code> - When the incident was resolved (resolved email only)</li>
+            <li><code>{{incident_duration}}</code> - Total downtime duration (resolved email only)</li>
+            <li><code>{{incident_details_url}}</code> - URL to incident details page</li>
+            <li><code>{{comment_incident_url}}</code> - URL to comment on incident (resolved email only)</li>
+        </ul>
+    </div>
+
+    <div class="template-section">
+        <h2 class="template-title">1. Incident Started Email</h2>
+        <div class="template-container">
+            <p><strong>Subject:</strong> 🔴 {{monitor_name}} is DOWN</p>
+            <p><strong>Template File:</strong> incident-started-email.html</p>
+            <iframe src="incident-started-email.html"></iframe>
+        </div>
+    </div>
+
+    <div class="template-section">
+        <h2 class="template-title">2. Incident Resolved Email</h2>
+        <div class="template-container">
+            <p><strong>Subject:</strong> 🟢 {{monitor_name}} is UP</p>
+            <p><strong>Template File:</strong> incident-resolved-email.html</p>
+            <iframe src="incident-resolved-email.html"></iframe>
+        </div>
+    </div>
+
+    <div class="template-container">
+        <h3>Implementation Notes:</h3>
+        <ul>
+            <li>Both templates are fully responsive and work on all major email clients</li>
+            <li>Replace the logo placeholder with your actual logo URL</li>
+            <li>Update the footer copyright text with your company name</li>
+            <li>The templates use inline CSS for maximum email client compatibility</li>
+            <li>Colors follow the style guidelines: red/orange for down, green for up</li>
+            <li>All placeholders should be replaced server-side before sending</li>
+            <li>The {{monitor_url}}, {{incident_details_url}}, and {{comment_incident_url}} placeholders need to be added to your template engine</li>
+        </ul>
+    </div>
+
+    <script>
+        // Optional: Auto-replace placeholders with sample data for preview
+        window.addEventListener('load', function() {
+            const sampleData = {
+                '{{user_name}}': 'John Doe',
+                '{{monitor_name}}': 'Production API',
+                '{{monitor_url}}': '#',
+                '{{checked_url}}': 'https://api.example.com/health',
+                '{{root_cause}}': 'HTTP 500 - Internal Server Error',
+                '{{incident_start}}': '2024-01-15 14:23:45',
+                '{{incident_resolved}}': '2024-01-15 14:28:08',
+                '{{incident_duration}}': '4 minutes 23 seconds',
+                '{{incident_details_url}}': '#',
+                '{{comment_incident_url}}': '#'
+            };
+
+            // This would be handled server-side in production
+            console.log('Sample data for testing:', sampleData);
+        });
+    </script>
+</body>
+</html>
