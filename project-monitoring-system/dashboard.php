@@ -541,13 +541,34 @@ foreach ($projects as &$project) {
         }
         
         /* Navigation */
+        .nav-header {
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+        }
+        
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .nav-brand img {
+            height: 40px;
+        }
+        
         .nav-menu {
             display: flex;
             gap: 8px;
-            margin-bottom: 24px;
-            background-color: var(--bg-secondary);
-            padding: 12px;
-            border-radius: 12px;
         }
         
         .nav-item {
@@ -571,14 +592,26 @@ foreach ($projects as &$project) {
     </style>
 </head>
 <body>
+    <!-- Navigation Header -->
+    <nav class="nav-header">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <img src="https://uptime.seorocket.lt/images/seorocket.png" alt="SEO Rocket">
+            </div>
+            <div class="nav-menu">
+                <a href="dashboard.php" class="nav-item active">Monitors</a>
+                <a href="add_project.php" class="nav-item">Add Monitor</a>
+                <a href="notifications.php" class="nav-item">Notifications</a>
+                <?php if (isAdmin()): ?>
+                <a href="admin/users.php" class="nav-item">Admin</a>
+                <?php endif; ?>
+                <a href="logout.php" class="nav-item">Logout</a>
+            </div>
+        </div>
+    </nav>
+    
     <div class="dashboard-container">
         <div class="main-content">
-            <!-- Navigation -->
-            <nav class="nav-menu">
-                <a href="dashboard.php" class="nav-item active">Monitors</a>
-                <a href="notifications.php" class="nav-item">Notifications</a>
-                <a href="logout.php" class="nav-item">Logout</a>
-            </nav>
             
             <!-- Page Header -->
             <div class="page-header">
