@@ -27,17 +27,16 @@ try {
         exit();
     }
     
-    // Check if monitoring data exists, if not, generate mock data
-    if (!hasMonitoringData($pdo, $projectId)) {
-        generateMockData($pdo, $projectId);
-    }
-    
     // Get monitoring data
-    $statusCodeData = getStatusCodeDistribution($pdo, $projectId, 7);
+    $statusCodeData = getRealStatusCodeData($pdo, $projectId, 7);
     $uptime7Days = calculateUptime($pdo, $projectId, 7);
     $uptime30Days = calculateUptime($pdo, $projectId, 30);
     $uptime365Days = calculateUptime($pdo, $projectId, 365);
     $sslInfo = getSSLInfo($pdo, $projectId);
+    $latestIncidents = getLatestIncidents($pdo, $projectId, 5);
+    $responseTimeData = getResponseTimeStats($pdo, $projectId);
+    $performanceMetrics = getPerformanceMetrics($pdo, $projectId);
+    $lastChecked = getLastChecked($pdo, $projectId);
     
     // Get response time data based on time range
     $responseHours = match($timeRange) {
@@ -401,18 +400,20 @@ try {
                     <button class="btn-export" style="width: 100%;">Set up maintenance</button>
                 </div>
 
-                <!-- Regions -->
+                <!-- Documentation -->
                 <div class="sidebar-widget">
                     <h3 class="widget-title">
                         <svg class="widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                         </svg>
-                        Regions
+                        Documentation
                     </h3>
-                    <p class="text-muted"><?php echo htmlspecialchars($project['monitoring_region'] ?? 'North America'); ?></p>
-                    <div class="world-map">
-                        <div class="map-marker" style="top: 35%; left: 25%;"></div>
-                    </div>
+                    <p class="text-muted">
+                        For more details about this project, please refer to the project documentation.
+                    </p>
+                    <a href="project_docs.php?id=<?php echo $projectId; ?>" class="btn-export" target="_blank">
+                        View Documentation
+                    </a>
                 </div>
 
                 <!-- To Be Notified -->

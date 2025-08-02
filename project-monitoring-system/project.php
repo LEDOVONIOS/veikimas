@@ -27,13 +27,8 @@ try {
         exit();
     }
     
-    // Check if monitoring data exists, if not, generate mock data
-    if (!hasMonitoringData($pdo, $projectId)) {
-        generateMockData($pdo, $projectId);
-    }
-    
     // Get monitoring data
-    $statusCodeData = getStatusCodeDistribution($pdo, $projectId, 7);
+    $statusCodeData = getRealStatusCodeData($pdo, $projectId, 7);
     $uptime7Days = calculateUptime($pdo, $projectId, 7);
     $uptime30Days = calculateUptime($pdo, $projectId, 30);
     $uptime365Days = calculateUptime($pdo, $projectId, 365);
@@ -158,13 +153,6 @@ try {
                     </span>
                 </div>
                 
-                <div class="info-item">
-                    <strong>Geographic Region:</strong> 
-                    <span class="region-badge">
-                        📍 <?php echo htmlspecialchars($project['monitoring_region'] ?? 'North America'); ?>
-                    </span>
-                </div>
-                
                 <?php if (!empty($project['server_location'])): ?>
                     <div class="info-item">
                         <strong>Server Location:</strong> 
@@ -183,7 +171,7 @@ try {
         
         <!-- HTTP Status Code Summary -->
         <div class="monitoring-section">
-            <h2>HTTP Status Code Summary</h2>
+            <h2>HTTP Status Code Summary (Last 7 Days)</h2>
             <?php if ($statusCodeData && $statusCodeData['total'] > 0): ?>
                 <div class="status-code-grid">
                     <?php foreach ($statusCodeData['distribution'] as $code => $data): ?>
@@ -205,52 +193,19 @@ try {
                                     default => ''
                                 };
                                 ?>
+                                <small>(<?php echo $data['count']; ?> requests)</small>
                             </div>
                         </div>
                     <?php endforeach; ?>
                 </div>
+                <p class="text-muted" style="margin-top: 15px; font-size: 14px;">
+                    Based on <?php echo $statusCodeData['total']; ?> requests from actual monitoring of <?php echo htmlspecialchars($project['project_url']); ?>
+                </p>
             <?php else: ?>
-                <div class="status-code-grid">
-                    <div class="status-code-item status-2xx">
-                        <div class="status-code-header">
-                            <span class="code">2xx</span>
-                            <span class="percentage">100%</span>
-                        </div>
-                        <div class="status-code-bar">
-                            <div class="status-code-fill" style="width: 100%"></div>
-                        </div>
-                        <div class="status-code-label">Success</div>
-                    </div>
-                    <div class="status-code-item status-3xx">
-                        <div class="status-code-header">
-                            <span class="code">3xx</span>
-                            <span class="percentage">0%</span>
-                        </div>
-                        <div class="status-code-bar">
-                            <div class="status-code-fill" style="width: 0%"></div>
-                        </div>
-                        <div class="status-code-label">Redirects</div>
-                    </div>
-                    <div class="status-code-item status-4xx">
-                        <div class="status-code-header">
-                            <span class="code">4xx</span>
-                            <span class="percentage">0%</span>
-                        </div>
-                        <div class="status-code-bar">
-                            <div class="status-code-fill" style="width: 0%"></div>
-                        </div>
-                        <div class="status-code-label">Client errors</div>
-                    </div>
-                    <div class="status-code-item status-5xx">
-                        <div class="status-code-header">
-                            <span class="code">5xx</span>
-                            <span class="percentage">0%</span>
-                        </div>
-                        <div class="status-code-bar">
-                            <div class="status-code-fill" style="width: 0%"></div>
-                        </div>
-                        <div class="status-code-label">Server errors</div>
-                    </div>
+                <div class="empty-state">
+                    <p>No monitoring data available yet for <?php echo htmlspecialchars($project['project_url']); ?></p>
+                    <p class="text-muted">Status codes will appear here once the monitoring system starts checking your project URL.</p>
+                    <p class="text-muted" style="margin-top: 10px;">Make sure the monitoring cron job is set up and running.</p>
                 </div>
             <?php endif; ?>
         </div>
@@ -361,85 +316,7 @@ try {
             <?php endif; ?>
         </div>
         
-        <!-- Cron Job Monitoring -->
-        <div class="monitoring-section">
-            <h2>Cron Job Monitoring</h2>
-            <?php if (!empty($cronJobs)): ?>
-                <div class="cron-jobs-table">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Job Name</th>
-                                <th>Schedule</th>
-                                <th>Status</th>
-                                <th>Last Run</th>
-                                <th>Next Run</th>
-                                <th>Duration</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($cronJobs as $job): ?>
-                                <tr>
-                                    <td class="job-name"><?php echo htmlspecialchars($job['job_name']); ?></td>
-                                    <td class="job-schedule">
-                                        <code><?php echo htmlspecialchars($job['schedule']); ?></code>
-                                    </td>
-                                    <td>
-                                        <?php if ($job['status'] === 'success'): ?>
-                                            <span class="status-badge status-success">✓ Success</span>
-                                        <?php elseif ($job['status'] === 'failed'): ?>
-                                            <span class="status-badge status-critical">✗ Failed</span>
-                                        <?php elseif ($job['status'] === 'running'): ?>
-                                            <span class="status-badge status-warning">⟳ Running</span>
-                                        <?php else: ?>
-                                            <span class="status-badge status-neutral">⏸ Pending</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if ($job['last_run']): ?>
-                                            <?php echo date('M d, g:i A', strtotime($job['last_run'])); ?>
-                                        <?php else: ?>
-                                            <span class="text-muted">Never</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if ($job['next_run']): ?>
-                                            <?php echo date('M d, g:i A', strtotime($job['next_run'])); ?>
-                                        <?php else: ?>
-                                            <span class="text-muted">-</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if ($job['last_duration']): ?>
-                                            <?php echo $job['last_duration']; ?>s
-                                        <?php else: ?>
-                                            <span class="text-muted">-</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if ($job['error_message']): ?>
-                                            <span class="error-message" title="<?php echo htmlspecialchars($job['error_message']); ?>">
-                                                <?php echo htmlspecialchars(substr($job['error_message'], 0, 30) . '...'); ?>
-                                            </span>
-                                        <?php else: ?>
-                                            <span class="text-muted">-</span>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php else: ?>
-                <div class="empty-state">
-                    <p>No cron jobs configured for this project.</p>
-                    <p class="text-muted">Cron jobs will appear here once configured.</p>
-                </div>
-            <?php endif; ?>
-        </div>
-        
-        <!-- Response Time Chart -->
+        <!-- Response Time Analysis -->
         <div class="monitoring-section">
             <h2>Response Time (Last 24 Hours)</h2>
             <?php if ($responseTimeData && count($responseTimeData) > 0): ?>
