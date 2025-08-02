@@ -478,4 +478,61 @@ function hasMonitoringData($pdo, $projectId) {
         return false;
     }
 }
+
+/**
+ * Get real HTTP status code data from actual monitoring
+ */
+function getRealStatusCodeData($pdo, $projectId, $days = 7) {
+    $endDate = new DateTime();
+    $startDate = clone $endDate;
+    $startDate->modify("-{$days} days");
+    
+    try {
+        // Get the latest status codes from actual monitoring
+        $stmt = $pdo->prepare("
+            SELECT 
+                status_code,
+                COUNT(*) as count
+            FROM http_status_logs
+            WHERE project_id = ? 
+            AND checked_at BETWEEN ? AND ?
+            AND status_code > 0
+            GROUP BY status_code
+            ORDER BY status_code
+        ");
+        $stmt->execute([$projectId, $startDate->format('Y-m-d H:i:s'), $endDate->format('Y-m-d H:i:s')]);
+        
+        $distribution = [];
+        $total = 0;
+        
+        while ($row = $stmt->fetch()) {
+            $category = floor($row['status_code'] / 100) . 'xx';
+            if (!isset($distribution[$category])) {
+                $distribution[$category] = 0;
+            }
+            $distribution[$category] += $row['count'];
+            $total += $row['count'];
+        }
+        
+        // Convert to percentages
+        $result = [];
+        if ($total > 0) {
+            foreach ($distribution as $key => $value) {
+                $result[$key] = [
+                    'count' => $value,
+                    'percentage' => round(($value / $total) * 100, 1)
+                ];
+            }
+        }
+        
+        return [
+            'distribution' => $result,
+            'total' => $total
+        ];
+        
+    } catch (PDOException $e) {
+        error_log("Error getting real status code data: " . $e->getMessage());
+        return null;
+    }
+}
 ?>

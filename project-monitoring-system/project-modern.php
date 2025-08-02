@@ -30,20 +30,14 @@ try {
         exit();
     }
     
-    // Check if monitoring data exists, if not, generate mock data
-    if (!hasMonitoringData($pdo, $projectId)) {
-        generateMockData($pdo, $projectId);
-    }
-    
     // Get monitoring data
-    $statusCodeData = getStatusCodeDistribution($pdo, $projectId, 7);
+    $statusCodeData = getRealStatusCodeData($pdo, $projectId, 7);
     $uptime7Days = calculateUptime($pdo, $projectId, 7);
     $uptime30Days = calculateUptime($pdo, $projectId, 30);
     $uptime365Days = calculateUptime($pdo, $projectId, 365);
     $sslInfo = getSSLInfo($pdo, $projectId);
-    $responseTimeData = getResponseTimeStats($pdo, $projectId, 24);
-    $cronJobs = getCronJobs($pdo, $projectId);
-    $lastChecked = getLastChecked($pdo, $projectId);
+    $responseTimeData = getResponseTimeData($pdo, $projectId, 24); // Last 24 hours
+    $lastChecked = getLastCheckedTime($pdo, $projectId);
     $unreadNotifications = getUnreadNotificationsCount($pdo, $_SESSION['user_id']);
     
     // Get incidents with time filter
@@ -945,21 +939,6 @@ try {
                             <?php echo htmlspecialchars($sslInfo['issuer'] ?? 'Unknown'); ?>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- Monitoring Location -->
-            <div class="info-card">
-                <div class="info-card-header">
-                    <svg class="info-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    Monitoring Location
-                </div>
-                <div class="region-map">
-                    <div class="map-overlay"></div>
-                    <div class="region-marker"></div>
-                    <div class="region-label"><?php echo htmlspecialchars($project['monitoring_region'] ?? 'North America'); ?></div>
                 </div>
             </div>
         </div>
