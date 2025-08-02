@@ -286,12 +286,22 @@ $unreadCount = getUnreadNotificationsCount($pdo, $_SESSION['user_id']);
     </style>
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="nav-menu">
-        <a href="dashboard.php" class="nav-item">Monitors</a>
-        <a href="add_project.php" class="nav-item">Add Monitor</a>
-        <a href="notifications.php" class="nav-item active">Notifications</a>
-        <a href="logout.php" class="nav-item">Logout</a>
+    <!-- Navigation Header -->
+    <nav class="nav-header" style="background-color: var(--bg-secondary); border-bottom: 1px solid var(--border-color); margin-bottom: 24px;">
+        <div class="nav-container" style="max-width: 1400px; margin: 0 auto; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center;">
+            <div class="nav-brand" style="display: flex; align-items: center; gap: 12px;">
+                <img src="https://uptime.seorocket.lt/images/seorocket.png" alt="SEO Rocket" style="height: 40px;">
+            </div>
+            <nav class="nav-menu" style="display: flex; gap: 8px;">
+                <a href="dashboard.php" class="nav-item">Monitors</a>
+                <a href="add_project.php" class="nav-item">Add Monitor</a>
+                <a href="notifications.php" class="nav-item active">Notifications</a>
+                <?php if (isAdmin()): ?>
+                <a href="admin/users.php" class="nav-item">Admin</a>
+                <?php endif; ?>
+                <a href="logout.php" class="nav-item">Logout</a>
+            </nav>
+        </div>
     </nav>
 
     <div class="page-container">

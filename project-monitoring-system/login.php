@@ -256,6 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="auth-container">
         <div class="auth-card">
             <div class="auth-logo">
+                <img src="https://uptime.seorocket.lt/images/seorocket.png" alt="SEO Rocket" style="max-width: 200px; height: auto; margin-bottom: 24px;">
                 <h1>Uptime Monitor</h1>
             </div>
             <p class="auth-subtitle">Monitor your websites with confidence</p>
