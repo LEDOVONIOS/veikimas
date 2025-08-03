@@ -73,14 +73,22 @@ if (isPost()) {
                 'notify_up' => getPost('notify_up') ? 1 : 0,
                 'notify_ssl' => getPost('notify_ssl') ? 1 : 0,
                 'notify_domain' => getPost('notify_domain') ? 1 : 0,
-                'status' => 'active'
+                'status' => 'active',
+                'current_status' => 'unknown',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
             ]);
             
             if ($projectId) {
                 $_SESSION['success'] = 'Project added successfully!';
                 redirect('project.php?id=' . $projectId);
             } else {
-                $errors[] = 'Failed to add project. Please try again.';
+                $dbError = $db->getLastError();
+                if ($dbError) {
+                    $errors[] = 'Database error: ' . $dbError;
+                } else {
+                    $errors[] = 'Failed to add project. Please try again.';
+                }
             }
         }
     }

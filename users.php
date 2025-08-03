@@ -21,9 +21,9 @@ $whereClause = '';
 $whereParams = [];
 
 if ($search) {
-    $whereClause = " WHERE (username LIKE ? OR email LIKE ? OR name LIKE ?)";
+    $whereClause = " WHERE (username LIKE ? OR email LIKE ?)";
     $searchParam = '%' . $search . '%';
-    $whereParams = [$searchParam, $searchParam, $searchParam];
+    $whereParams = [$searchParam, $searchParam];
 }
 
 $totalUsers = $db->fetchValue("SELECT COUNT(*) FROM " . DB_PREFIX . "users" . $whereClause, $whereParams);
@@ -31,8 +31,7 @@ $totalPages = ceil($totalUsers / $perPage);
 
 // Get users
 $sql = "SELECT u.*, 
-        (SELECT COUNT(*) FROM " . DB_PREFIX . "projects WHERE user_id = u.id) as project_count,
-        (SELECT COUNT(*) FROM " . DB_PREFIX . "login_attempts WHERE user_id = u.id AND success = 1 AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)) as recent_logins
+        (SELECT COUNT(*) FROM " . DB_PREFIX . "projects WHERE user_id = u.id) as project_count
         FROM " . DB_PREFIX . "users u" . $whereClause . "
         ORDER BY u.created_at DESC
         LIMIT ? OFFSET ?";
@@ -56,7 +55,7 @@ include 'templates/header.php';
                     <form method="GET" action="" class="mb-4">
                         <div class="input-group">
                             <input type="text" class="form-control" name="search" 
-                                   placeholder="Search by username, email, or name..." 
+                                   placeholder="Search by username or email..." 
                                    value="<?php echo htmlspecialchars($search); ?>">
                             <div class="input-group-append">
                                 <button class="btn btn-primary" type="submit">
@@ -83,7 +82,6 @@ include 'templates/header.php';
                                 <tr>
                                     <th>Username</th>
                                     <th>Email</th>
-                                    <th>Name</th>
                                     <th>Role</th>
                                     <th>Projects</th>
                                     <th>Status</th>
@@ -101,7 +99,6 @@ include 'templates/header.php';
                                             </a>
                                         </td>
                                         <td><?php echo htmlspecialchars($user['email']); ?></td>
-                                        <td><?php echo htmlspecialchars($user['name'] ?: '-'); ?></td>
                                         <td>
                                             <span class="badge badge-<?php echo $user['role'] === 'admin' ? 'danger' : 'secondary'; ?>">
                                                 <?php echo ucfirst($user['role']); ?>
@@ -109,7 +106,7 @@ include 'templates/header.php';
                                         </td>
                                         <td><?php echo $user['project_count']; ?></td>
                                         <td>
-                                            <?php if ($user['is_active']): ?>
+                                            <?php if ($user['status'] === 'active'): ?>
                                                 <span class="badge badge-success">Active</span>
                                             <?php else: ?>
                                                 <span class="badge badge-danger">Inactive</span>
@@ -134,7 +131,7 @@ include 'templates/header.php';
                                                        class="btn btn-outline-secondary" title="Edit">
                                                         <i class="fas fa-edit"></i>
                                                     </a>
-                                                    <?php if ($user['is_active']): ?>
+                                                    <?php if ($user['status'] === 'active'): ?>
                                                         <a href="user-action.php?id=<?php echo $user['id']; ?>&action=deactivate" 
                                                            class="btn btn-outline-warning" title="Deactivate"
                                                            onclick="return confirm('Are you sure you want to deactivate this user?');">
@@ -154,7 +151,7 @@ include 'templates/header.php';
                                 
                                 <?php if (empty($users)): ?>
                                     <tr>
-                                        <td colspan="9" class="text-center text-muted py-4">
+                                        <td colspan="8" class="text-center text-muted py-4">
                                             No users found.
                                         </td>
                                     </tr>

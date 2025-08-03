@@ -28,7 +28,6 @@ $success = false;
 
 // Handle form submission
 if (isPost() && $isOwnProfile) {
-    $name = sanitize(getPost('name'));
     $email = sanitize(getPost('email'));
     $currentPassword = getPost('current_password');
     $newPassword = getPost('new_password');
@@ -64,7 +63,6 @@ if (isPost() && $isOwnProfile) {
     
     if (empty($errors)) {
         $updateData = [
-            'name' => $name,
             'email' => $email,
             'updated_at' => date('Y-m-d H:i:s')
         ];
@@ -90,8 +88,8 @@ if (isPost() && $isOwnProfile) {
 $stats = [
     'total_projects' => $db->fetchValue("SELECT COUNT(*) FROM " . DB_PREFIX . "projects WHERE user_id = ?", [$userId]),
     'active_projects' => $db->fetchValue("SELECT COUNT(*) FROM " . DB_PREFIX . "projects WHERE user_id = ? AND status = 'active'", [$userId]),
-    'total_checks' => $db->fetchValue("SELECT COUNT(*) FROM " . DB_PREFIX . "checks WHERE project_id IN (SELECT id FROM " . DB_PREFIX . "projects WHERE user_id = ?)", [$userId]),
-    'recent_logins' => $db->fetchValue("SELECT COUNT(*) FROM " . DB_PREFIX . "login_attempts WHERE user_id = ? AND success = 1 AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)", [$userId])
+    'total_checks' => $db->fetchValue("SELECT COUNT(*) FROM " . DB_PREFIX . "monitor_logs WHERE project_id IN (SELECT id FROM " . DB_PREFIX . "projects WHERE user_id = ?)", [$userId]),
+    'recent_logins' => 0 // Login attempts table doesn't exist yet
 ];
 
 // Get recent projects
@@ -186,7 +184,7 @@ include 'templates/header.php';
                                         <h6 class="mb-0">Status</h6>
                                     </div>
                                     <div class="col-sm-8">
-                                        <?php if ($user['is_active']): ?>
+                                        <?php if ($user['status'] === 'active'): ?>
                                             <span class="badge badge-success">Active</span>
                                         <?php else: ?>
                                             <span class="badge badge-danger">Inactive</span>
@@ -205,13 +203,6 @@ include 'templates/header.php';
                                 <label>Username</label>
                                 <input type="text" class="form-control" value="<?php echo htmlspecialchars($user['username']); ?>" disabled>
                                 <small class="form-text text-muted">Username cannot be changed</small>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Full Name</label>
-                                <input type="text" class="form-control" name="name" 
-                                       value="<?php echo htmlspecialchars($user['name'] ?: ''); ?>" 
-                                       placeholder="Enter your full name">
                             </div>
                             
                             <div class="form-group">
