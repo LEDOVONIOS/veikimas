@@ -1,0 +1,46 @@
+<?php
+/**
+ * Project Monitoring System Configuration Template
+ * 
+ * INSTALLATION INSTRUCTIONS:
+ * 1. Rename this file from config.php.template to config.php
+ * 2. Update the database credentials below with your actual values
+ * 3. Save the file
+ */
+
+// Database Configuration
+define('DB_HOST', 'localhost');           // Database host (usually 'localhost')
+define('DB_NAME', 'your_database_name');   // Your database name
+define('DB_USER', 'your_database_user');   // Your database username
+define('DB_PASS', 'your_database_pass');   // Your database password
+
+// System Configuration
+define('INSTALLED', false);                // Change to true after installation
+define('SITE_NAME', 'Project Monitoring System');
+define('SITE_URL', 'http://your-domain.com/project-monitoring-system'); // Your full URL
+
+// Email Configuration (for notifications)
+define('SMTP_HOST', 'smtp.gmail.com');     // Your SMTP server
+define('SMTP_PORT', 587);                  // SMTP port (587 for TLS, 465 for SSL)
+define('SMTP_USER', 'your-email@gmail.com'); // Your email address
+define('SMTP_PASS', 'your-email-password'); // Your email password
+define('SMTP_FROM_EMAIL', 'noreply@your-domain.com');
+define('SMTP_FROM_NAME', 'Project Monitor');
+
+// Security Configuration
+define('SESSION_LIFETIME', 3600);          // Session lifetime in seconds (1 hour)
+define('PASSWORD_MIN_LENGTH', 8);          // Minimum password length
+
+// Monitoring Configuration
+define('CHECK_INTERVAL', 300);             // Check interval in seconds (5 minutes)
+define('TIMEOUT_SECONDS', 10);             // HTTP request timeout
+define('MAX_REDIRECTS', 3);                // Maximum redirects to follow
+
+// Development Mode
+define('DEBUG_MODE', false);               // Set to true for development
+define('ERROR_REPORTING', E_ALL);          // Error reporting level
+
+// Timezone
+date_default_timezone_set('America/New_York'); // Set your timezone
+
+?>
