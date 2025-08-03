@@ -1,20 +1,27 @@
 <?php
 /**
- * Database Configuration File
- * 
- * IMPORTANT: Update these values with your Hostinger database credentials
- * For security, consider moving this file outside the public_html directory
- * and update the require_once paths accordingly
+ * Database Configuration and Connection
+ * This file handles the database connection and includes automatic setup
  */
+
+// Check if config.php exists, if not show installation message
+if (file_exists(__DIR__ . '/config.php')) {
+    require_once __DIR__ . '/config.php';
+} else {
+    // If no config.php, redirect to installation
+    if (basename($_SERVER['PHP_SELF']) !== 'install.php') {
+        header('Location: install.php');
+        exit();
+    }
+    // Define minimal constants for installer
+    define('DB_HOST', 'localhost');
+    define('DB_NAME', 'your_database_name');
+    define('DB_USER', 'your_database_user');
+    define('DB_PASS', 'your_database_password');
+}
 
 // Include the automatic database setup script
 require_once __DIR__ . '/includes/auto_setup_database.php';
-
-// Database configuration
-define('DB_HOST', 'localhost'); // Usually 'localhost' on Hostinger
-define('DB_NAME', 'your_database_name'); // Replace with your database name
-define('DB_USER', 'your_database_user'); // Replace with your database username
-define('DB_PASS', 'your_database_password'); // Replace with your database password
 
 // Create database connection
 try {
@@ -34,8 +41,12 @@ try {
         setupDatabase($pdo);
     }
 } catch (PDOException $e) {
-    // In production, log this error instead of displaying it
-    die("Database connection failed: " . $e->getMessage());
+    // Show friendly error message
+    if (defined('DEBUG_MODE') && DEBUG_MODE) {
+        die("Database connection failed: " . $e->getMessage());
+    } else {
+        die("Database connection failed. Please check your configuration.");
+    }
 }
 
 // Function to check if user is logged in

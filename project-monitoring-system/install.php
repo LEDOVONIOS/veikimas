@@ -5,7 +5,12 @@ session_start();
 if (file_exists('config.php')) {
     require_once 'config.php';
     if (defined('INSTALLED') && INSTALLED === true) {
-        die('The system is already installed. Please delete config.php if you want to reinstall.');
+        die('<div style="text-align:center; margin-top:50px;">
+            <h2>System Already Installed</h2>
+            <p>The Project Monitoring System is already installed.</p>
+            <p>To reinstall, please delete the config.php file and try again.</p>
+            <p><a href="index.php">Go to Login</a></p>
+        </div>');
     }
 }
 
@@ -23,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $db_pass = $_POST['db_pass'];
         
         try {
+            // First try to connect without database name
             $pdo = new PDO(
                 "mysql:host=$db_host;charset=utf8mb4",
                 $db_user,
@@ -30,14 +36,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
             );
             
-            // Try to create database if it doesn't exist
+            // Create database if it doesn't exist
             $pdo->exec("CREATE DATABASE IF NOT EXISTS `$db_name` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             
+            // Now connect to the specific database
+            $pdo = new PDO(
+                "mysql:host=$db_host;dbname=$db_name;charset=utf8mb4",
+                $db_user,
+                $db_pass,
+                array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
+            );
+            
             // Store database info in session
-            $_SESSION['db_host'] = $db_host;
-            $_SESSION['db_name'] = $db_name;
-            $_SESSION['db_user'] = $db_user;
-            $_SESSION['db_pass'] = $db_pass;
+            $_SESSION['install_db_host'] = $db_host;
+            $_SESSION['install_db_name'] = $db_name;
+            $_SESSION['install_db_user'] = $db_user;
+            $_SESSION['install_db_pass'] = $db_pass;
             
             header('Location: install.php?step=2');
             exit();
@@ -45,395 +59,134 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Database connection failed: ' . $e->getMessage();
         }
     } elseif ($step === 2) {
+        // Import database schema
+        try {
+            $pdo = new PDO(
+                "mysql:host={$_SESSION['install_db_host']};dbname={$_SESSION['install_db_name']};charset=utf8mb4",
+                $_SESSION['install_db_user'],
+                $_SESSION['install_db_pass'],
+                array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
+            );
+            
+            // Read and execute the SQL file
+            $sql = file_get_contents('db_complete.sql');
+            
+            // Split by semicolon but ignore semicolons within quotes
+            $queries = preg_split('/;(?=([^\']*\'[^\']*\')*[^\']*$)/', $sql);
+            
+            foreach ($queries as $query) {
+                $query = trim($query);
+                if (!empty($query)) {
+                    $pdo->exec($query);
+                }
+            }
+            
+            $_SESSION['install_db_imported'] = true;
+            header('Location: install.php?step=3');
+            exit();
+        } catch (Exception $e) {
+            $error = 'Database import failed: ' . $e->getMessage();
+        }
+    } elseif ($step === 3) {
         // Create admin account
         $admin_name = $_POST['admin_name'];
         $admin_email = $_POST['admin_email'];
         $admin_password = $_POST['admin_password'];
         $admin_password_confirm = $_POST['admin_password_confirm'];
+        $site_url = $_POST['site_url'];
         
-        if ($admin_password !== $admin_password_confirm) {
-            $error = 'Passwords do not match.';
-        } elseif (strlen($admin_password) < 8) {
-            $error = 'Password must be at least 8 characters long.';
+        // Validation
+        if (empty($admin_name) || empty($admin_email) || empty($admin_password)) {
+            $error = 'All fields are required.';
         } elseif (!filter_var($admin_email, FILTER_VALIDATE_EMAIL)) {
             $error = 'Invalid email address.';
+        } elseif (strlen($admin_password) < 8) {
+            $error = 'Password must be at least 8 characters long.';
+        } elseif ($admin_password !== $admin_password_confirm) {
+            $error = 'Passwords do not match.';
         } else {
-            // Store admin info in session
-            $_SESSION['admin_name'] = $admin_name;
-            $_SESSION['admin_email'] = $admin_email;
-            $_SESSION['admin_password'] = password_hash($admin_password, PASSWORD_DEFAULT);
-            
-            header('Location: install.php?step=3');
-            exit();
-        }
-    } elseif ($step === 3) {
-        // Install database and create config
-        try {
-            $pdo = new PDO(
-                "mysql:host={$_SESSION['db_host']};dbname={$_SESSION['db_name']};charset=utf8mb4",
-                $_SESSION['db_user'],
-                $_SESSION['db_pass'],
-                array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
-            );
-            
-            // Install database schema
-            $sqlStatements = getSqlStatements();
-            
-            foreach ($sqlStatements as $statement) {
-                if (!empty(trim($statement))) {
-                    $pdo->exec($statement);
-                }
+            try {
+                $pdo = new PDO(
+                    "mysql:host={$_SESSION['install_db_host']};dbname={$_SESSION['install_db_name']};charset=utf8mb4",
+                    $_SESSION['install_db_user'],
+                    $_SESSION['install_db_pass'],
+                    array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
+                );
+                
+                // Hash the password
+                $password_hash = password_hash($admin_password, PASSWORD_DEFAULT);
+                
+                // Get admin role ID
+                $stmt = $pdo->prepare("SELECT id FROM roles WHERE name = 'Admin'");
+                $stmt->execute();
+                $admin_role = $stmt->fetch();
+                $admin_role_id = $admin_role ? $admin_role['id'] : 1;
+                
+                // Insert admin user
+                $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password_hash, role_id) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$admin_name, $admin_email, $password_hash, $admin_role_id]);
+                
+                // Create config.php
+                $config_content = '<?php
+/**
+ * Project Monitoring System Configuration
+ * Auto-generated during installation
+ */
+
+// Database Configuration
+define(\'DB_HOST\', \'' . $_SESSION['install_db_host'] . '\');
+define(\'DB_NAME\', \'' . $_SESSION['install_db_name'] . '\');
+define(\'DB_USER\', \'' . $_SESSION['install_db_user'] . '\');
+define(\'DB_PASS\', \'' . $_SESSION['install_db_pass'] . '\');
+
+// System Configuration
+define(\'INSTALLED\', true);
+define(\'SITE_NAME\', \'Project Monitoring System\');
+define(\'SITE_URL\', \'' . $site_url . '\');
+
+// Email Configuration (update these later)
+define(\'SMTP_HOST\', \'smtp.gmail.com\');
+define(\'SMTP_PORT\', 587);
+define(\'SMTP_USER\', \'\');
+define(\'SMTP_PASS\', \'\');
+define(\'SMTP_FROM_EMAIL\', \'noreply@' . parse_url($site_url, PHP_URL_HOST) . '\');
+define(\'SMTP_FROM_NAME\', \'Project Monitor\');
+
+// Security Configuration
+define(\'SESSION_LIFETIME\', 3600);
+define(\'PASSWORD_MIN_LENGTH\', 8);
+
+// Monitoring Configuration
+define(\'CHECK_INTERVAL\', 300);
+define(\'TIMEOUT_SECONDS\', 10);
+define(\'MAX_REDIRECTS\', 3);
+
+// Development Mode
+define(\'DEBUG_MODE\', false);
+define(\'ERROR_REPORTING\', E_ALL);
+
+// Timezone
+date_default_timezone_set(\'UTC\');
+
+?>';
+                
+                file_put_contents('config.php', $config_content);
+                
+                // Clear installation session data
+                unset($_SESSION['install_db_host']);
+                unset($_SESSION['install_db_name']);
+                unset($_SESSION['install_db_user']);
+                unset($_SESSION['install_db_pass']);
+                unset($_SESSION['install_db_imported']);
+                
+                $_SESSION['install_complete'] = true;
+                header('Location: install.php?step=4');
+                exit();
+            } catch (Exception $e) {
+                $error = 'Failed to create admin account: ' . $e->getMessage();
             }
-            
-            // Insert admin user
-            $stmt = $pdo->prepare("
-                INSERT INTO users (full_name, email, password_hash, role_id) 
-                VALUES (?, ?, ?, (SELECT id FROM roles WHERE name = 'Admin'))
-            ");
-            $stmt->execute([
-                $_SESSION['admin_name'],
-                $_SESSION['admin_email'],
-                $_SESSION['admin_password']
-            ]);
-            
-            // Create config file
-            $configContent = "<?php
-/**
- * Configuration file generated by installer
- * Generated on: " . date('Y-m-d H:i:s') . "
- */
-
-// Mark as installed
-define('INSTALLED', true);
-
-// Database configuration
-define('DB_HOST', '" . addslashes($_SESSION['db_host']) . "');
-define('DB_NAME', '" . addslashes($_SESSION['db_name']) . "');
-define('DB_USER', '" . addslashes($_SESSION['db_user']) . "');
-define('DB_PASS', '" . addslashes($_SESSION['db_pass']) . "');
-
-// System settings
-define('SITE_NAME', 'Project Monitoring System');
-define('SITE_URL', '" . getBaseUrl() . "');
-define('TIMEZONE', 'UTC');
-
-// Email settings (configure these later)
-define('SMTP_HOST', '');
-define('SMTP_PORT', 587);
-define('SMTP_USER', '');
-define('SMTP_PASS', '');
-define('SMTP_FROM_EMAIL', 'noreply@" . $_SERVER['HTTP_HOST'] . "');
-define('SMTP_FROM_NAME', 'Project Monitoring System');
-
-// Security settings
-define('SESSION_LIFETIME', 86400); // 24 hours
-define('PASSWORD_RESET_TIMEOUT', 3600); // 1 hour
-define('MAX_LOGIN_ATTEMPTS', 5);
-define('LOCKOUT_TIME', 900); // 15 minutes
-
-?>";
-            
-            file_put_contents('config.php', $configContent);
-            
-            // Update db.php to use config.php
-            $dbPhpContent = "<?php
-/**
- * Database Connection File
- * This file now loads configuration from config.php
- */
-
-// Load configuration
-require_once __DIR__ . '/config.php';
-
-// Create database connection
-try {
-    \$pdo = new PDO(
-        \"mysql:host=\" . DB_HOST . \";dbname=\" . DB_NAME . \";charset=utf8mb4\",
-        DB_USER,
-        DB_PASS,
-        array(
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false
-        )
-    );
-} catch (PDOException \$e) {
-    // In production, log this error instead of displaying it
-    die(\"Database connection failed: \" . \$e->getMessage());
-}
-
-// Function to check if user is logged in
-function isLoggedIn() {
-    return isset(\$_SESSION['user_id']) && !empty(\$_SESSION['user_id']);
-}
-
-// Function to redirect to login if not authenticated
-function requireLogin() {
-    if (!isLoggedIn()) {
-        header(\"Location: login.php\");
-        exit();
-    }
-}
-
-// Function to sanitize input
-function sanitizeInput(\$data) {
-    \$data = trim(\$data);
-    \$data = stripslashes(\$data);
-    \$data = htmlspecialchars(\$data);
-    return \$data;
-}
-
-// Start session if not already started
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-?>";
-            
-            file_put_contents('db.php', $dbPhpContent);
-            
-            // Clear session
-            session_destroy();
-            
-            $success = true;
-        } catch (Exception $e) {
-            $error = 'Installation failed: ' . $e->getMessage();
         }
     }
-}
-
-// Function to get base URL
-function getBaseUrl() {
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'];
-    $path = dirname($_SERVER['REQUEST_URI']);
-    return $protocol . '://' . $host . rtrim($path, '/');
-}
-
-// Function to get all SQL statements
-function getSqlStatements() {
-    $sql = [];
-    
-    // Base schema
-    $sql[] = "CREATE TABLE IF NOT EXISTS `users` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `full_name` VARCHAR(100) NOT NULL,
-        `email` VARCHAR(100) NOT NULL,
-        `password_hash` VARCHAR(255) NOT NULL,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        UNIQUE KEY `unique_email` (`email`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    $sql[] = "CREATE TABLE IF NOT EXISTS `projects` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `user_id` INT(11) NOT NULL,
-        `project_name` VARCHAR(200) NOT NULL,
-        `project_url` VARCHAR(255) DEFAULT NULL,
-        `description` TEXT,
-        `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        KEY `fk_user_id` (`user_id`),
-        CONSTRAINT `fk_projects_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    $sql[] = "CREATE TABLE IF NOT EXISTS `incidents` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `project_id` INT(11) NOT NULL,
-        `status` ENUM('Open', 'Resolved') NOT NULL DEFAULT 'Open',
-        `root_cause` TEXT NOT NULL,
-        `started_at` DATETIME NOT NULL,
-        `duration` VARCHAR(50) DEFAULT NULL,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        KEY `fk_project_id` (`project_id`),
-        KEY `idx_status` (`status`),
-        CONSTRAINT `fk_incidents_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    $sql[] = "CREATE INDEX IF NOT EXISTS `idx_user_email` ON `users` (`email`)";
-    $sql[] = "CREATE INDEX IF NOT EXISTS `idx_project_user` ON `projects` (`user_id`)";
-    $sql[] = "CREATE INDEX IF NOT EXISTS `idx_incident_project` ON `incidents` (`project_id`)";
-    
-    // Monitoring features
-    $sql[] = "CREATE TABLE IF NOT EXISTS `http_status_logs` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `project_id` INT(11) NOT NULL,
-        `status_code` INT(3) NOT NULL,
-        `count` INT(11) DEFAULT 1,
-        `checked_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        KEY `idx_project_status` (`project_id`, `status_code`),
-        KEY `idx_checked_at` (`checked_at`),
-        CONSTRAINT `fk_status_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    $sql[] = "CREATE TABLE IF NOT EXISTS `uptime_logs` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `project_id` INT(11) NOT NULL,
-        `is_up` BOOLEAN DEFAULT TRUE,
-        `response_time` INT(11) DEFAULT NULL COMMENT 'Response time in milliseconds',
-        `checked_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        KEY `idx_project_uptime` (`project_id`, `checked_at`),
-        CONSTRAINT `fk_uptime_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    $sql[] = "CREATE TABLE IF NOT EXISTS `ssl_certificates` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `project_id` INT(11) NOT NULL,
-        `issuer` VARCHAR(255) DEFAULT NULL,
-        `expiry_date` DATE DEFAULT NULL,
-        `domain_expiry_date` DATE DEFAULT NULL,
-        `last_checked` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        UNIQUE KEY `unique_project_ssl` (`project_id`),
-        CONSTRAINT `fk_ssl_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    $sql[] = "CREATE TABLE IF NOT EXISTS `response_times` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `project_id` INT(11) NOT NULL,
-        `response_time` INT(11) NOT NULL COMMENT 'Response time in milliseconds',
-        `measured_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        KEY `idx_project_response` (`project_id`, `measured_at`),
-        CONSTRAINT `fk_response_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    $sql[] = "ALTER TABLE `projects` ADD COLUMN IF NOT EXISTS `server_location` VARCHAR(100) DEFAULT NULL AFTER `description`";
-    $sql[] = "ALTER TABLE `projects` ADD COLUMN IF NOT EXISTS `last_checked` TIMESTAMP NULL DEFAULT NULL AFTER `server_location`";
-    $sql[] = "ALTER TABLE `projects` ADD COLUMN IF NOT EXISTS `monitoring_region` VARCHAR(100) DEFAULT 'North America' AFTER `last_checked`";
-    
-    $sql[] = "CREATE TABLE IF NOT EXISTS `cron_jobs` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `project_id` INT(11) NOT NULL,
-        `job_name` VARCHAR(255) NOT NULL,
-        `schedule` VARCHAR(100) NOT NULL COMMENT 'Cron expression',
-        `last_run` TIMESTAMP NULL DEFAULT NULL,
-        `next_run` TIMESTAMP NULL DEFAULT NULL,
-        `status` ENUM('success', 'failed', 'running', 'pending') DEFAULT 'pending',
-        `last_duration` INT(11) DEFAULT NULL COMMENT 'Duration in seconds',
-        `error_message` TEXT DEFAULT NULL,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        KEY `idx_project_cron` (`project_id`),
-        CONSTRAINT `fk_cron_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    $sql[] = "CREATE TABLE IF NOT EXISTS `notifications` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `user_id` INT(11) NOT NULL,
-        `project_id` INT(11) NOT NULL,
-        `type` ENUM('down', 'up', 'ssl_expiry', 'domain_expiry', 'cron_failed') NOT NULL,
-        `title` VARCHAR(255) NOT NULL,
-        `message` TEXT NOT NULL,
-        `is_read` BOOLEAN DEFAULT FALSE,
-        `sent_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        KEY `idx_user_notifications` (`user_id`, `is_read`),
-        KEY `idx_project_notifications` (`project_id`),
-        CONSTRAINT `fk_notification_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-        CONSTRAINT `fk_notification_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    $sql[] = "CREATE TABLE IF NOT EXISTS `notification_settings` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `user_id` INT(11) NOT NULL,
-        `project_id` INT(11) NOT NULL,
-        `notify_on_down` BOOLEAN DEFAULT TRUE,
-        `notify_on_ssl_expiry` BOOLEAN DEFAULT TRUE,
-        `notify_on_domain_expiry` BOOLEAN DEFAULT TRUE,
-        `notify_on_cron_failure` BOOLEAN DEFAULT TRUE,
-        `email_notifications` BOOLEAN DEFAULT TRUE,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        UNIQUE KEY `unique_user_project_settings` (`user_id`, `project_id`),
-        CONSTRAINT `fk_settings_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-        CONSTRAINT `fk_settings_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    // Password reset table
-    $sql[] = "CREATE TABLE IF NOT EXISTS `password_reset_tokens` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `user_id` INT(11) NOT NULL,
-        `token` VARCHAR(64) NOT NULL,
-        `expires_at` TIMESTAMP NOT NULL,
-        `used` BOOLEAN DEFAULT FALSE,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        UNIQUE KEY `unique_token` (`token`),
-        KEY `idx_user_token` (`user_id`, `token`),
-        KEY `idx_expires` (`expires_at`),
-        CONSTRAINT `fk_reset_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    // Roles tables
-    $sql[] = "CREATE TABLE IF NOT EXISTS `roles` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `name` VARCHAR(50) NOT NULL,
-        `description` TEXT DEFAULT NULL,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        UNIQUE KEY `unique_role_name` (`name`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    $sql[] = "ALTER TABLE `users` 
-        ADD COLUMN IF NOT EXISTS `role_id` INT(11) DEFAULT NULL AFTER `password_hash`,
-        ADD KEY IF NOT EXISTS `fk_user_role` (`role_id`)";
-    
-    // Check if constraint exists before adding
-    $sql[] = "SET @constraint_exists = (
-        SELECT COUNT(*) 
-        FROM information_schema.TABLE_CONSTRAINTS 
-        WHERE CONSTRAINT_SCHEMA = DATABASE() 
-        AND TABLE_NAME = 'users' 
-        AND CONSTRAINT_NAME = 'fk_users_role'
-    )";
-    
-    $sql[] = "SET @sql = IF(@constraint_exists = 0, 
-        'ALTER TABLE users ADD CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL',
-        'SELECT 1'
-    )";
-    
-    $sql[] = "PREPARE stmt FROM @sql";
-    $sql[] = "EXECUTE stmt";
-    $sql[] = "DEALLOCATE PREPARE stmt";
-    
-    $sql[] = "CREATE TABLE IF NOT EXISTS `url_limits` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `user_id` INT(11) NOT NULL,
-        `max_urls` INT(11) NOT NULL DEFAULT 10,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        UNIQUE KEY `unique_user_limit` (`user_id`),
-        CONSTRAINT `fk_url_limits_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    
-    // Insert default roles
-    $sql[] = "INSERT IGNORE INTO `roles` (`name`, `description`) VALUES
-        ('Admin', 'Administrator with full system access'),
-        ('Customer', 'Regular customer with limited access')";
-    
-    // Create view
-    $sql[] = "CREATE OR REPLACE VIEW `user_url_count` AS
-        SELECT 
-            u.id AS user_id,
-            u.email,
-            r.name AS role_name,
-            COUNT(DISTINCT p.project_url) AS url_count,
-            COALESCE(ul.max_urls, 10) AS url_limit
-        FROM users u
-        LEFT JOIN roles r ON u.role_id = r.id
-        LEFT JOIN projects p ON u.id = p.user_id AND p.project_url IS NOT NULL AND p.project_url != ''
-        LEFT JOIN url_limits ul ON u.id = ul.user_id
-        GROUP BY u.id, u.email, r.name, ul.max_urls";
-    
-    $sql[] = "CREATE INDEX IF NOT EXISTS `idx_projects_url` ON `projects` (`project_url`)";
-    
-    return $sql;
 }
 ?>
 <!DOCTYPE html>
@@ -441,7 +194,7 @@ function getSqlStatements() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Monitoring System - Installation</title>
+    <title>Install - Project Monitoring System</title>
     <style>
         * {
             margin: 0;
@@ -450,387 +203,357 @@ function getSqlStatements() {
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #f5f5f5;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+            color: #333;
+            line-height: 1.6;
         }
         
-        .installer-container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        .container {
             max-width: 600px;
-            width: 100%;
-            overflow: hidden;
+            margin: 50px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         
-        .installer-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
             text-align: center;
         }
         
-        .installer-header h1 {
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-        
-        .installer-header p {
-            opacity: 0.9;
-            font-size: 16px;
-        }
-        
-        .progress-bar {
-            background: rgba(255, 255, 255, 0.2);
-            height: 8px;
-            border-radius: 4px;
-            margin-top: 20px;
-            overflow: hidden;
-        }
-        
-        .progress-fill {
-            background: white;
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.3s ease;
-        }
-        
-        .installer-body {
-            padding: 40px;
-        }
-        
-        .step-title {
-            font-size: 24px;
-            margin-bottom: 10px;
-            color: #333;
-        }
-        
-        .step-description {
-            color: #666;
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
             margin-bottom: 30px;
-            line-height: 1.6;
+        }
+        
+        .progress {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            padding: 0 20px;
+        }
+        
+        .progress-step {
+            text-align: center;
+            position: relative;
+            flex: 1;
+        }
+        
+        .progress-step::before {
+            content: attr(data-step);
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #ddd;
+            color: white;
+            line-height: 30px;
+            margin-bottom: 5px;
+        }
+        
+        .progress-step.active::before {
+            background: #3498db;
+        }
+        
+        .progress-step.completed::before {
+            background: #27ae60;
+            content: '✓';
+        }
+        
+        .progress-step span {
+            display: block;
+            font-size: 12px;
+            color: #7f8c8d;
         }
         
         .form-group {
             margin-bottom: 20px;
         }
         
-        .form-group label {
+        label {
             display: block;
-            margin-bottom: 8px;
-            color: #333;
+            margin-bottom: 5px;
+            color: #555;
             font-weight: 500;
         }
         
-        .form-group input {
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="url"] {
             width: 100%;
-            padding: 12px 16px;
+            padding: 10px 15px;
             border: 1px solid #ddd;
-            border-radius: 8px;
+            border-radius: 5px;
             font-size: 16px;
             transition: border-color 0.3s;
         }
         
-        .form-group input:focus {
+        input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #3498db;
         }
         
-        .form-group small {
-            display: block;
-            margin-top: 6px;
-            color: #999;
-            font-size: 14px;
-        }
-        
-        .error-message {
-            background: #fee;
-            border: 1px solid #fcc;
-            color: #c33;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        
-        .success-message {
-            background: #efe;
-            border: 1px solid #cfc;
-            color: #363;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 30px;
+        .help-text {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 5px;
         }
         
         .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            display: inline-block;
-            text-align: center;
-        }
-        
-        .btn-primary {
-            background: #667eea;
+            background: #3498db;
             color: white;
-            flex: 1;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s;
         }
         
-        .btn-primary:hover {
-            background: #5a67d8;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        .btn:hover {
+            background: #2980b9;
         }
         
-        .btn-secondary {
-            background: #e2e8f0;
-            color: #4a5568;
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
         }
         
-        .btn-secondary:hover {
-            background: #cbd5e0;
-        }
-        
-        .requirements {
-            background: #f7fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 20px;
+        .alert {
+            padding: 15px;
+            border-radius: 5px;
             margin-bottom: 20px;
         }
         
-        .requirements h3 {
-            margin-bottom: 10px;
-            color: #2d3748;
+        .alert-error {
+            background: #fee;
+            color: #c33;
+            border: 1px solid #fcc;
         }
         
-        .requirements ul {
-            list-style: none;
-            margin-left: 0;
+        .alert-success {
+            background: #efe;
+            color: #3c3;
+            border: 1px solid #cfc;
         }
         
-        .requirements li {
-            padding: 8px 0;
-            padding-left: 24px;
-            position: relative;
-        }
-        
-        .requirements li:before {
-            content: '✓';
-            position: absolute;
-            left: 0;
-            color: #48bb78;
-            font-weight: bold;
-        }
-        
-        .complete-container {
+        .success-box {
             text-align: center;
             padding: 40px;
         }
         
-        .complete-icon {
-            width: 80px;
-            height: 80px;
-            background: #48bb78;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
+        .success-icon {
+            font-size: 60px;
+            color: #27ae60;
             margin-bottom: 20px;
-        }
-        
-        .complete-icon svg {
-            width: 40px;
-            height: 40px;
-            fill: white;
-        }
-        
-        .complete-title {
-            font-size: 28px;
-            margin-bottom: 10px;
-            color: #2d3748;
-        }
-        
-        .complete-message {
-            color: #718096;
-            margin-bottom: 30px;
-            line-height: 1.6;
         }
         
         .info-box {
-            background: #bee3f8;
-            border: 1px solid #90cdf4;
-            color: #2c5282;
-            padding: 16px;
-            border-radius: 8px;
+            background: #e3f2fd;
+            border: 1px solid #90caf9;
+            padding: 15px;
+            border-radius: 5px;
             margin-bottom: 20px;
-            text-align: left;
         }
         
-        .info-box strong {
-            display: block;
-            margin-bottom: 4px;
+        .info-box h3 {
+            margin-bottom: 10px;
+            color: #1976d2;
         }
         
-        .info-box code {
-            background: rgba(255, 255, 255, 0.7);
+        .code {
+            background: #f5f5f5;
             padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Monaco', 'Consolas', monospace;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        
+        .requirements {
+            margin-bottom: 20px;
+        }
+        
+        .requirements ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .requirements li {
+            padding: 5px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+        
+        .requirements li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #27ae60;
         }
     </style>
 </head>
 <body>
-    <div class="installer-container">
-        <div class="installer-header">
-            <h1>Project Monitoring System</h1>
-            <p>Installation Wizard</p>
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: <?php echo ($step / 3) * 100; ?>%"></div>
+    <div class="container">
+        <h1>Project Monitoring System</h1>
+        <p class="subtitle">Installation Wizard</p>
+        
+        <div class="progress">
+            <div class="progress-step <?php echo $step >= 1 ? ($step > 1 ? 'completed' : 'active') : ''; ?>" data-step="1">
+                <span>Database</span>
+            </div>
+            <div class="progress-step <?php echo $step >= 2 ? ($step > 2 ? 'completed' : 'active') : ''; ?>" data-step="2">
+                <span>Import Schema</span>
+            </div>
+            <div class="progress-step <?php echo $step >= 3 ? ($step > 3 ? 'completed' : 'active') : ''; ?>" data-step="3">
+                <span>Admin Account</span>
+            </div>
+            <div class="progress-step <?php echo $step >= 4 ? 'completed' : ''; ?>" data-step="4">
+                <span>Complete</span>
             </div>
         </div>
         
-        <div class="installer-body">
-            <?php if (!empty($error)): ?>
-                <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
-            <?php endif; ?>
+        <?php if ($error): ?>
+            <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
+        <?php endif; ?>
+        
+        <?php if ($success): ?>
+            <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
+        <?php endif; ?>
+        
+        <?php if ($step === 1): ?>
+            <h2>Database Configuration</h2>
+            <p style="margin-bottom: 20px;">Enter your MySQL database credentials below.</p>
             
-            <?php if ($step === 1): ?>
-                <h2 class="step-title">Step 1: Database Configuration</h2>
-                <p class="step-description">Enter your MySQL database connection details. The installer will create the database if it doesn't exist.</p>
-                
-                <form method="POST">
-                    <div class="form-group">
-                        <label for="db_host">Database Host</label>
-                        <input type="text" id="db_host" name="db_host" value="localhost" required>
-                        <small>Usually 'localhost' for most hosting providers</small>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="db_name">Database Name</label>
-                        <input type="text" id="db_name" name="db_name" placeholder="project_monitoring" required>
-                        <small>Will be created if it doesn't exist</small>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="db_user">Database Username</label>
-                        <input type="text" id="db_user" name="db_user" placeholder="your_db_user" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="db_pass">Database Password</label>
-                        <input type="password" id="db_pass" name="db_pass" placeholder="your_db_password" required>
-                    </div>
-                    
-                    <div class="button-group">
-                        <button type="submit" class="btn btn-primary">Test Connection & Continue</button>
-                    </div>
-                </form>
-                
-            <?php elseif ($step === 2): ?>
-                <h2 class="step-title">Step 2: Administrator Account</h2>
-                <p class="step-description">Create the administrator account for managing the system.</p>
-                
-                <form method="POST">
-                    <div class="form-group">
-                        <label for="admin_name">Full Name</label>
-                        <input type="text" id="admin_name" name="admin_name" placeholder="John Doe" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="admin_email">Email Address</label>
-                        <input type="email" id="admin_email" name="admin_email" placeholder="admin@example.com" required>
-                        <small>This will be your login email</small>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="admin_password">Password</label>
-                        <input type="password" id="admin_password" name="admin_password" placeholder="Enter a strong password" required minlength="8">
-                        <small>Minimum 8 characters</small>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="admin_password_confirm">Confirm Password</label>
-                        <input type="password" id="admin_password_confirm" name="admin_password_confirm" placeholder="Confirm your password" required>
-                    </div>
-                    
-                    <div class="button-group">
-                        <a href="install.php?step=1" class="btn btn-secondary">Back</a>
-                        <button type="submit" class="btn btn-primary">Create Account & Continue</button>
-                    </div>
-                </form>
-                
-            <?php elseif ($step === 3): ?>
-                <h2 class="step-title">Step 3: Installation</h2>
-                <p class="step-description">Ready to install the Project Monitoring System with your configuration.</p>
-                
+            <div class="info-box">
+                <h3>Requirements:</h3>
                 <div class="requirements">
-                    <h3>Installation will:</h3>
                     <ul>
-                        <li>Create all necessary database tables</li>
-                        <li>Set up user roles and permissions</li>
-                        <li>Create your administrator account</li>
-                        <li>Generate configuration files</li>
-                        <li>Set up monitoring capabilities</li>
+                        <li>MySQL 5.7 or higher</li>
+                        <li>PHP 7.4 or higher</li>
+                        <li>PDO MySQL extension enabled</li>
                     </ul>
                 </div>
-                
-                <form method="POST">
-                    <div class="button-group">
-                        <a href="install.php?step=2" class="btn btn-secondary">Back</a>
-                        <button type="submit" class="btn btn-primary">Install Now</button>
-                    </div>
-                </form>
-                
-            <?php elseif ($success === true): ?>
-                <div class="complete-container">
-                    <div class="complete-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                        </svg>
-                    </div>
-                    
-                    <h2 class="complete-title">Installation Complete!</h2>
-                    <p class="complete-message">
-                        The Project Monitoring System has been successfully installed. 
-                        You can now log in with your administrator account.
-                    </p>
-                    
-                    <div class="info-box">
-                        <strong>Administrator Email:</strong>
-                        <code><?php echo htmlspecialchars($_SESSION['admin_email'] ?? ''); ?></code>
-                    </div>
-                    
-                    <div class="success-message">
-                        <strong>Important Security Notes:</strong>
-                        <ul style="margin-top: 10px; padding-left: 20px;">
-                            <li>Delete or rename install.php for security</li>
-                            <li>Set proper file permissions on config.php (644)</li>
-                            <li>Configure email settings in config.php for notifications</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="button-group">
-                        <a href="login.php" class="btn btn-primary">Go to Login</a>
-                    </div>
+            </div>
+            
+            <form method="POST" action="install.php?step=1">
+                <div class="form-group">
+                    <label for="db_host">Database Host</label>
+                    <input type="text" id="db_host" name="db_host" value="localhost" required>
+                    <p class="help-text">Usually 'localhost' for most hosting providers</p>
                 </div>
-            <?php endif; ?>
-        </div>
+                
+                <div class="form-group">
+                    <label for="db_name">Database Name</label>
+                    <input type="text" id="db_name" name="db_name" required>
+                    <p class="help-text">The installer will create this database if it doesn't exist</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="db_user">Database Username</label>
+                    <input type="text" id="db_user" name="db_user" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="db_pass">Database Password</label>
+                    <input type="password" id="db_pass" name="db_pass">
+                    <p class="help-text">Leave empty if no password is set</p>
+                </div>
+                
+                <button type="submit" class="btn">Test Connection & Continue</button>
+            </form>
+            
+        <?php elseif ($step === 2): ?>
+            <h2>Import Database Schema</h2>
+            <p style="margin-bottom: 20px;">The installer will now import the database schema.</p>
+            
+            <div class="info-box">
+                <h3>Tables to be created:</h3>
+                <ul style="margin-top: 10px;">
+                    <li>• Users & Roles</li>
+                    <li>• Projects & Project Limits</li>
+                    <li>• Incidents & Monitoring Logs</li>
+                    <li>• Notifications & Settings</li>
+                    <li>• SSL Certificates & Response Times</li>
+                </ul>
+            </div>
+            
+            <form method="POST" action="install.php?step=2">
+                <button type="submit" class="btn">Import Database Schema</button>
+            </form>
+            
+        <?php elseif ($step === 3): ?>
+            <h2>Create Administrator Account</h2>
+            <p style="margin-bottom: 20px;">Create your first administrator account.</p>
+            
+            <form method="POST" action="install.php?step=3">
+                <div class="form-group">
+                    <label for="admin_name">Full Name</label>
+                    <input type="text" id="admin_name" name="admin_name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="admin_email">Email Address</label>
+                    <input type="email" id="admin_email" name="admin_email" required>
+                    <p class="help-text">You'll use this email to login</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="admin_password">Password</label>
+                    <input type="password" id="admin_password" name="admin_password" required minlength="8">
+                    <p class="help-text">Minimum 8 characters</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="admin_password_confirm">Confirm Password</label>
+                    <input type="password" id="admin_password_confirm" name="admin_password_confirm" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="site_url">Site URL</label>
+                    <input type="url" id="site_url" name="site_url" value="<?php 
+                        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+                        $host = $_SERVER['HTTP_HOST'];
+                        $path = dirname($_SERVER['REQUEST_URI']);
+                        echo $protocol . '://' . $host . $path;
+                    ?>" required>
+                    <p class="help-text">Full URL to your monitoring system</p>
+                </div>
+                
+                <button type="submit" class="btn">Create Admin Account</button>
+            </form>
+            
+        <?php elseif ($step === 4): ?>
+            <div class="success-box">
+                <div class="success-icon">✓</div>
+                <h2>Installation Complete!</h2>
+                <p style="margin-bottom: 30px;">Your Project Monitoring System has been successfully installed.</p>
+                
+                <div class="info-box" style="text-align: left;">
+                    <h3>Next Steps:</h3>
+                    <ol style="margin-top: 10px; padding-left: 20px;">
+                        <li>Delete the <code>install.php</code> file for security</li>
+                        <li>Set up cron job for monitoring (see documentation)</li>
+                        <li>Configure email settings in <code>config.php</code></li>
+                        <li>Start adding your projects to monitor</li>
+                    </ol>
+                </div>
+                
+                <div class="info-box" style="text-align: left; margin-top: 20px;">
+                    <h3>Cron Job Setup:</h3>
+                    <p style="margin-top: 10px;">Add this to your crontab to run monitoring every 5 minutes:</p>
+                    <p style="margin-top: 10px; background: #f5f5f5; padding: 10px; border-radius: 3px; font-family: monospace; font-size: 14px;">
+                        */5 * * * * /usr/bin/php <?php echo dirname(__FILE__); ?>/scripts/monitor_projects.php
+                    </p>
+                </div>
+                
+                <a href="login.php" class="btn" style="margin-top: 20px;">Go to Login</a>
+            </div>
+        <?php endif; ?>
     </div>
 </body>
 </html>
