@@ -7,6 +7,9 @@
  * and update the require_once paths accordingly
  */
 
+// Include the automatic database setup script
+require_once __DIR__ . '/includes/auto_setup_database.php';
+
 // Database configuration
 define('DB_HOST', 'localhost'); // Usually 'localhost' on Hostinger
 define('DB_NAME', 'your_database_name'); // Replace with your database name
@@ -25,6 +28,11 @@ try {
             PDO::ATTR_EMULATE_PREPARES => false
         )
     );
+    
+    // Automatically set up database tables if they don't exist
+    if (!isDatabaseSetup($pdo)) {
+        setupDatabase($pdo);
+    }
 } catch (PDOException $e) {
     // In production, log this error instead of displaying it
     die("Database connection failed: " . $e->getMessage());
