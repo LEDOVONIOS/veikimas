@@ -122,6 +122,7 @@ $additionalCSS = '
     font-size: 2rem;
     font-weight: bold;
     margin-bottom: 0.5rem;
+    color: #000;
 }
 .stat-card .label {
     color: #666;
