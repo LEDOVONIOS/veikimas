@@ -440,22 +440,41 @@ class Monitor {
      */
     private function sendDownNotification($project, $checkResult) {
         $user = $this->db->fetchOne(
-            "SELECT email FROM " . DB_PREFIX . "users WHERE id = ?",
+            "SELECT email, username FROM " . DB_PREFIX . "users WHERE id = ?",
             [$project['user_id']]
         );
         
         $recipient = $project['notify_email'] ?: $user['email'];
         $subject = "🔴 {$project['name']} is DOWN";
         
-        $body = "Your monitored website is currently down.\n\n";
-        $body .= "Project: {$project['name']}\n";
-        $body .= "URL: {$project['url']}\n";
-        $body .= "Status Code: " . ($checkResult['status_code'] ?: 'N/A') . "\n";
-        $body .= "Error: " . ($checkResult['error_message'] ?: 'Unknown') . "\n";
-        $body .= "Time: " . date('Y-m-d H:i:s') . "\n\n";
-        $body .= "We'll notify you when it comes back online.";
+        // Format root cause
+        $rootCause = $checkResult['error_message'] ?: 'Unknown Error';
+        if ($checkResult['status_code']) {
+            if ($checkResult['status_code'] >= 500) {
+                $rootCause = "HTTP {$checkResult['status_code']} - Server Error";
+            } elseif ($checkResult['status_code'] >= 400) {
+                $rootCause = "HTTP {$checkResult['status_code']} - Client Error";
+            } elseif ($checkResult['status_code'] >= 300) {
+                $rootCause = "HTTP {$checkResult['status_code']} - Redirect Error";
+            }
+        } elseif (strpos($rootCause, 'timed out') !== false) {
+            $rootCause = 'Connection Timeout';
+        } elseif (strpos($rootCause, 'DNS') !== false || strpos($rootCause, 'resolve') !== false) {
+            $rootCause = 'DNS Error';
+        }
         
-        if ($this->mailer->send($recipient, $subject, $body)) {
+        // Use HTML template
+        $html = $this->mailer->getIncidentStartedTemplate([
+            'user_name' => $user['username'],
+            'monitor_name' => $project['name'],
+            'checked_url' => $project['url'],
+            'root_cause' => $rootCause,
+            'incident_start' => date('Y-m-d H:i:s'),
+            'status_code' => $checkResult['status_code'],
+            'project_id' => $project['id']
+        ]);
+        
+        if ($this->mailer->send($recipient, $subject, $html, true)) {
             $this->logNotification($project['id'], 'down', $recipient, $subject);
         }
     }
@@ -465,7 +484,7 @@ class Monitor {
      */
     private function sendUpNotification($project) {
         $user = $this->db->fetchOne(
-            "SELECT email FROM " . DB_PREFIX . "users WHERE id = ?",
+            "SELECT email, username FROM " . DB_PREFIX . "users WHERE id = ?",
             [$project['user_id']]
         );
         
@@ -477,20 +496,44 @@ class Monitor {
         );
         
         $recipient = $project['notify_email'] ?: $user['email'];
-        $subject = "✅ {$project['name']} is UP";
+        $subject = "🟢 {$project['name']} is UP";
         
-        $body = "Good news! Your monitored website is back online.\n\n";
-        $body .= "Project: {$project['name']}\n";
-        $body .= "URL: {$project['url']}\n";
-        
+        // Format duration for email
+        $durationText = 'Unknown';
         if ($incident && $incident['duration']) {
-            $duration = $this->formatDuration($incident['duration']);
-            $body .= "Downtime Duration: {$duration}\n";
+            $seconds = $incident['duration'];
+            if ($seconds < 60) {
+                $durationText = $seconds . ' seconds';
+            } elseif ($seconds < 3600) {
+                $minutes = floor($seconds / 60);
+                $remainingSeconds = $seconds % 60;
+                $durationText = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
+                if ($remainingSeconds > 0) {
+                    $durationText .= ' ' . $remainingSeconds . ' second' . ($remainingSeconds > 1 ? 's' : '');
+                }
+            } else {
+                $hours = floor($seconds / 3600);
+                $remainingMinutes = floor(($seconds % 3600) / 60);
+                $durationText = $hours . ' hour' . ($hours > 1 ? 's' : '');
+                if ($remainingMinutes > 0) {
+                    $durationText .= ' ' . $remainingMinutes . ' minute' . ($remainingMinutes > 1 ? 's' : '');
+                }
+            }
         }
         
-        $body .= "Time: " . date('Y-m-d H:i:s') . "\n";
+        // Use HTML template
+        $html = $this->mailer->getIncidentResolvedTemplate([
+            'user_name' => $user['username'],
+            'monitor_name' => $project['name'],
+            'checked_url' => $project['url'],
+            'root_cause' => $incident['reason'] ?: 'Connection Failed',
+            'incident_start' => $incident['started_at'] ? date('Y-m-d H:i:s', strtotime($incident['started_at'])) : 'Unknown',
+            'incident_resolved' => date('Y-m-d H:i:s'),
+            'incident_duration' => $durationText,
+            'project_id' => $project['id']
+        ]);
         
-        if ($this->mailer->send($recipient, $subject, $body)) {
+        if ($this->mailer->send($recipient, $subject, $html, true)) {
             $this->logNotification($project['id'], 'up', $recipient, $subject);
         }
     }
