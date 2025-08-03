@@ -2,9 +2,9 @@
     </main>
     
     <!-- Footer -->
-    <footer class="mt-5 py-3 bg-light">
+    <footer class="mt-5 py-3" style="background: var(--bg-secondary); border-top: 1px solid var(--border-color);">
         <div class="container-fluid text-center">
-            <small class="text-muted">
+            <small style="color: var(--text-muted);">
                 &copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved. 
                 | Powered by <a href="https://seorocket.lt" target="_blank">SEO Rocket</a>
             </small>
