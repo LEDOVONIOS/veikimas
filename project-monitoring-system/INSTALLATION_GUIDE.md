@@ -2,7 +2,10 @@
 
 ## Overview
 
-The Project Monitoring System now includes a web-based installation wizard that handles all database setup and configuration automatically. No manual SQL imports are required.
+The Project Monitoring System includes multiple installation options:
+1. **Automatic Setup** - Database tables are created automatically on first access
+2. **Web-based Installation Wizard** - Guided setup through install.php
+3. **Manual Setup Script** - Run setup_database.php for direct table creation
 
 ## Installation Steps
 
@@ -10,7 +13,27 @@ The Project Monitoring System now includes a web-based installation wizard that 
 
 Upload all files from the `project-monitoring-system` directory to your web server.
 
-### 2. Run the Installation Wizard
+### 2. Configure Database Connection
+
+Edit `db.php` and update the database credentials:
+```php
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'your_database_name');
+define('DB_USER', 'your_database_user');
+define('DB_PASS', 'your_database_password');
+```
+
+### 3. Choose Installation Method
+
+#### Method A: Automatic Setup (Simplest)
+Just access any page of your site. The database tables will be created automatically when db.php is loaded.
+
+#### Method B: Manual Setup Script
+1. Navigate to `http://your-domain.com/setup_database.php`
+2. The script will create all tables and show the status
+3. **Delete setup_database.php after completion**
+
+#### Method C: Installation Wizard
 
 1. Navigate to `http://your-domain.com/install.php` in your web browser
 2. You'll see the installation wizard with 3 simple steps
