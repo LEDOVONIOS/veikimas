@@ -1,0 +1,27 @@
+# Configuration
+/config/config.php
+
+# Logs
+/logs/*.log
+/logs/*
+
+# Temporary files
+*.tmp
+*.cache
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Dependencies (if using Composer in future)
+/vendor/
+composer.lock
