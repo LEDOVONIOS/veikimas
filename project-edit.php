@@ -5,12 +5,25 @@ require_once 'includes/init.php';
 // Require login
 $auth->requireLogin();
 
-// Check if user can create projects
-if (!$auth->canCreateProject()) {
+// Get project ID
+$projectId = (int) getGet('id');
+
+if (!$projectId) {
     redirect('dashboard.php');
 }
 
-$pageTitle = 'Add New Project';
+// Get project details
+$project = $db->fetchOne(
+    "SELECT * FROM " . DB_PREFIX . "projects WHERE id = ? AND user_id = ?",
+    [$projectId, $auth->getUserId()]
+);
+
+if (!$project) {
+    $_SESSION['error'] = 'Project not found or access denied.';
+    redirect('dashboard.php');
+}
+
+$pageTitle = 'Edit Project: ' . htmlspecialchars($project['name']);
 $errors = [];
 $success = false;
 
@@ -24,10 +37,22 @@ if (isPost()) {
     $expected_status = (int) getPost('expected_status', 200);
     $search_string = sanitize(getPost('search_string'));
     $notify_email = sanitize(getPost('notify_email'));
+    $status = getPost('status', 'active');
     
     // Validation
     if (empty($name)) {
         $errors[] = 'Project name is required.';
+    }
+    
+    // Check if name already exists for another project
+    if ($name !== $project['name']) {
+        $existingProject = $db->fetchOne(
+            "SELECT id FROM " . DB_PREFIX . "projects WHERE user_id = ? AND name = ? AND id != ?",
+            [$auth->getUserId(), $name, $projectId]
+        );
+        if ($existingProject) {
+            $errors[] = 'A project with this name already exists.';
+        }
     }
     
     if (empty($url)) {
@@ -49,39 +74,29 @@ if (isPost()) {
     }
     
     if (empty($errors)) {
-        // Check if project name already exists for this user
-        $existingProject = $db->fetchOne(
-            "SELECT id FROM " . DB_PREFIX . "projects WHERE user_id = ? AND name = ?",
-            [$auth->getUserId(), $name]
-        );
+        // Update project
+        $result = $db->update(DB_PREFIX . 'projects', [
+            'name' => $name,
+            'url' => $url,
+            'check_interval' => $check_interval,
+            'timeout' => $timeout,
+            'method' => $method,
+            'expected_status' => $expected_status,
+            'search_string' => $search_string,
+            'notify_email' => $notify_email,
+            'notify_down' => getPost('notify_down') ? 1 : 0,
+            'notify_up' => getPost('notify_up') ? 1 : 0,
+            'notify_ssl' => getPost('notify_ssl') ? 1 : 0,
+            'notify_domain' => getPost('notify_domain') ? 1 : 0,
+            'status' => $status,
+            'updated_at' => date('Y-m-d H:i:s')
+        ], 'id = ?', [$projectId]);
         
-        if ($existingProject) {
-            $errors[] = 'A project with this name already exists. Please choose a different name.';
+        if ($result) {
+            $_SESSION['success'] = 'Project updated successfully!';
+            redirect('project.php?id=' . $projectId);
         } else {
-            // Insert project
-            $projectId = $db->insert(DB_PREFIX . 'projects', [
-                'user_id' => $auth->getUserId(),
-                'name' => $name,
-                'url' => $url,
-                'check_interval' => $check_interval,
-                'timeout' => $timeout,
-                'method' => $method,
-                'expected_status' => $expected_status,
-                'search_string' => $search_string,
-                'notify_email' => $notify_email,
-                'notify_down' => getPost('notify_down') ? 1 : 0,
-                'notify_up' => getPost('notify_up') ? 1 : 0,
-                'notify_ssl' => getPost('notify_ssl') ? 1 : 0,
-                'notify_domain' => getPost('notify_domain') ? 1 : 0,
-                'status' => 'active'
-            ]);
-            
-            if ($projectId) {
-                $_SESSION['success'] = 'Project added successfully!';
-                redirect('project.php?id=' . $projectId);
-            } else {
-                $errors[] = 'Failed to add project. Please try again.';
-            }
+            $errors[] = 'Failed to update project. Please try again.';
         }
     }
 }
@@ -94,7 +109,7 @@ include 'templates/header.php';
         <div class="card">
             <div class="card-header">
                 <h4 class="mb-0">
-                    <i class="fas fa-plus"></i> Add New Project
+                    <i class="fas fa-edit"></i> Edit Project
                 </h4>
             </div>
             <div class="card-body">
@@ -117,26 +132,34 @@ include 'templates/header.php';
                             <div class="form-group">
                                 <label>Project Name <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" name="name" 
-                                       value="<?php echo htmlspecialchars(getPost('name', '')); ?>" 
+                                       value="<?php echo htmlspecialchars(getPost('name', $project['name'])); ?>" 
                                        placeholder="My Website" required>
                             </div>
                             
                             <div class="form-group">
                                 <label>URL to Monitor <span class="text-danger">*</span></label>
                                 <input type="url" class="form-control" name="url" 
-                                       value="<?php echo htmlspecialchars(getPost('url', '')); ?>" 
+                                       value="<?php echo htmlspecialchars(getPost('url', $project['url'])); ?>" 
                                        placeholder="https://example.com" required>
                                 <small class="form-text text-muted">Full URL including http:// or https://</small>
                             </div>
                             
                             <div class="form-group">
+                                <label>Status</label>
+                                <select class="form-control" name="status">
+                                    <option value="active" <?php echo getPost('status', $project['status']) === 'active' ? 'selected' : ''; ?>>Active</option>
+                                    <option value="paused" <?php echo getPost('status', $project['status']) === 'paused' ? 'selected' : ''; ?>>Paused</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
                                 <label>Check Interval</label>
                                 <select class="form-control" name="check_interval">
-                                    <option value="60" <?php echo getPost('check_interval') == 60 ? 'selected' : ''; ?>>1 minute</option>
-                                    <option value="300" <?php echo getPost('check_interval', 300) == 300 ? 'selected' : ''; ?>>5 minutes</option>
-                                    <option value="600" <?php echo getPost('check_interval') == 600 ? 'selected' : ''; ?>>10 minutes</option>
-                                    <option value="1800" <?php echo getPost('check_interval') == 1800 ? 'selected' : ''; ?>>30 minutes</option>
-                                    <option value="3600" <?php echo getPost('check_interval') == 3600 ? 'selected' : ''; ?>>1 hour</option>
+                                    <option value="60" <?php echo getPost('check_interval', $project['check_interval']) == 60 ? 'selected' : ''; ?>>1 minute</option>
+                                    <option value="300" <?php echo getPost('check_interval', $project['check_interval']) == 300 ? 'selected' : ''; ?>>5 minutes</option>
+                                    <option value="600" <?php echo getPost('check_interval', $project['check_interval']) == 600 ? 'selected' : ''; ?>>10 minutes</option>
+                                    <option value="1800" <?php echo getPost('check_interval', $project['check_interval']) == 1800 ? 'selected' : ''; ?>>30 minutes</option>
+                                    <option value="3600" <?php echo getPost('check_interval', $project['check_interval']) == 3600 ? 'selected' : ''; ?>>1 hour</option>
                                 </select>
                                 <small class="form-text text-muted">How often to check the website</small>
                             </div>
@@ -148,16 +171,16 @@ include 'templates/header.php';
                             <div class="form-group">
                                 <label>Request Method</label>
                                 <select class="form-control" name="method">
-                                    <option value="GET" <?php echo getPost('method', 'GET') == 'GET' ? 'selected' : ''; ?>>GET</option>
-                                    <option value="HEAD" <?php echo getPost('method') == 'HEAD' ? 'selected' : ''; ?>>HEAD</option>
-                                    <option value="POST" <?php echo getPost('method') == 'POST' ? 'selected' : ''; ?>>POST</option>
+                                    <option value="GET" <?php echo getPost('method', $project['method']) === 'GET' ? 'selected' : ''; ?>>GET</option>
+                                    <option value="HEAD" <?php echo getPost('method', $project['method']) === 'HEAD' ? 'selected' : ''; ?>>HEAD</option>
+                                    <option value="POST" <?php echo getPost('method', $project['method']) === 'POST' ? 'selected' : ''; ?>>POST</option>
                                 </select>
                             </div>
                             
                             <div class="form-group">
                                 <label>Expected Status Code</label>
                                 <input type="number" class="form-control" name="expected_status" 
-                                       value="<?php echo getPost('expected_status', 200); ?>" 
+                                       value="<?php echo getPost('expected_status', $project['expected_status']); ?>" 
                                        min="100" max="599">
                                 <small class="form-text text-muted">Usually 200 for success</small>
                             </div>
@@ -165,14 +188,14 @@ include 'templates/header.php';
                             <div class="form-group">
                                 <label>Timeout (seconds)</label>
                                 <input type="number" class="form-control" name="timeout" 
-                                       value="<?php echo getPost('timeout', 30); ?>" 
+                                       value="<?php echo getPost('timeout', $project['timeout']); ?>" 
                                        min="1" max="60">
                             </div>
                             
                             <div class="form-group">
                                 <label>Search String (Optional)</label>
                                 <input type="text" class="form-control" name="search_string" 
-                                       value="<?php echo htmlspecialchars(getPost('search_string', '')); ?>" 
+                                       value="<?php echo htmlspecialchars(getPost('search_string', $project['search_string'])); ?>" 
                                        placeholder="Text to search for in response">
                                 <small class="form-text text-muted">Check will fail if this text is not found</small>
                             </div>
@@ -186,7 +209,7 @@ include 'templates/header.php';
                     <div class="form-group">
                         <label>Notification Email (Optional)</label>
                         <input type="email" class="form-control" name="notify_email" 
-                               value="<?php echo htmlspecialchars(getPost('notify_email', '')); ?>" 
+                               value="<?php echo htmlspecialchars(getPost('notify_email', $project['notify_email'])); ?>" 
                                placeholder="alerts@example.com">
                         <small class="form-text text-muted">Leave empty to use your account email</small>
                     </div>
@@ -196,7 +219,7 @@ include 'templates/header.php';
                         <div class="custom-control custom-checkbox">
                             <input type="checkbox" class="custom-control-input" id="notify_down" 
                                    name="notify_down" value="1" 
-                                   <?php echo getPost('notify_down', 1) ? 'checked' : ''; ?>>
+                                   <?php echo getPost('notify_down', $project['notify_down']) ? 'checked' : ''; ?>>
                             <label class="custom-control-label" for="notify_down">
                                 Website goes down
                             </label>
@@ -204,7 +227,7 @@ include 'templates/header.php';
                         <div class="custom-control custom-checkbox">
                             <input type="checkbox" class="custom-control-input" id="notify_up" 
                                    name="notify_up" value="1" 
-                                   <?php echo getPost('notify_up', 1) ? 'checked' : ''; ?>>
+                                   <?php echo getPost('notify_up', $project['notify_up']) ? 'checked' : ''; ?>>
                             <label class="custom-control-label" for="notify_up">
                                 Website comes back online
                             </label>
@@ -212,7 +235,7 @@ include 'templates/header.php';
                         <div class="custom-control custom-checkbox">
                             <input type="checkbox" class="custom-control-input" id="notify_ssl" 
                                    name="notify_ssl" value="1" 
-                                   <?php echo getPost('notify_ssl', 1) ? 'checked' : ''; ?>>
+                                   <?php echo getPost('notify_ssl', $project['notify_ssl']) ? 'checked' : ''; ?>>
                             <label class="custom-control-label" for="notify_ssl">
                                 SSL certificate expiring soon
                             </label>
@@ -220,7 +243,7 @@ include 'templates/header.php';
                         <div class="custom-control custom-checkbox">
                             <input type="checkbox" class="custom-control-input" id="notify_domain" 
                                    name="notify_domain" value="1" 
-                                   <?php echo getPost('notify_domain', 1) ? 'checked' : ''; ?>>
+                                   <?php echo getPost('notify_domain', $project['notify_domain']) ? 'checked' : ''; ?>>
                             <label class="custom-control-label" for="notify_domain">
                                 Domain expiring soon
                             </label>
@@ -230,9 +253,9 @@ include 'templates/header.php';
                     <hr>
                     
                     <div class="text-right">
-                        <a href="dashboard.php" class="btn btn-secondary">Cancel</a>
+                        <a href="project.php?id=<?php echo $projectId; ?>" class="btn btn-secondary">Cancel</a>
                         <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Add Project
+                            <i class="fas fa-save"></i> Update Project
                         </button>
                     </div>
                 </form>

@@ -29,7 +29,7 @@
             --bg-hover: #2a3444;
             --text-primary: #ffffff;
             --text-secondary: #94a3b8;
-            --text-muted: #64748b;
+            --text-muted: #666666;
             --border-color: #334155;
         }
         
