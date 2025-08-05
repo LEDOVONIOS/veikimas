@@ -42,15 +42,23 @@ $customEnd = getGet('end');
 // Calculate date range
 $ranges = getDateRangePresets();
 if ($dateRange === 'custom' && $customStart && $customEnd) {
-    $startDate = $customStart . ' 00:00:00';
-    $endDate = $customEnd . ' 23:59:59';
+    // Convert custom date range from local to UTC
+    $start = new DateTime($customStart . ' 00:00:00', new DateTimeZone(TIMEZONE));
+    $start->setTimezone(new DateTimeZone('UTC'));
+    $startDate = $start->format('Y-m-d H:i:s');
+    
+    $end = new DateTime($customEnd . ' 23:59:59', new DateTimeZone(TIMEZONE));
+    $end->setTimezone(new DateTimeZone('UTC'));
+    $endDate = $end->format('Y-m-d H:i:s');
 } elseif (isset($ranges[$dateRange])) {
     $startDate = $ranges[$dateRange]['start'];
     $endDate = $ranges[$dateRange]['end'];
 } else {
     // Default to last 24 hours
-    $startDate = date('Y-m-d H:i:s', strtotime('-24 hours'));
-    $endDate = date('Y-m-d H:i:s');
+    $utcStart = new DateTime('-24 hours', new DateTimeZone('UTC'));
+    $utcEnd = new DateTime('now', new DateTimeZone('UTC'));
+    $startDate = $utcStart->format('Y-m-d H:i:s');
+    $endDate = $utcEnd->format('Y-m-d H:i:s');
 }
 
 // Get uptime statistics
@@ -103,7 +111,7 @@ $uptimeData = [];
 $responseTimeData = [];
 
 foreach ($monitorLogs as $log) {
-    $chartLabels[] = date('M d H:i', strtotime($log['period']));
+    $chartLabels[] = fromUtcTimestamp($log['period'], 'M d H:i');
     $uptimeData[] = round($log['uptime_percentage'], 2);
     $responseTimeData[] = round($log['avg_response_time'], 2);
 }
@@ -281,7 +289,7 @@ include 'templates/header.php';
             </a>
             <button type="button" class="btn btn-info" id="daterange">
                 <i class="fas fa-calendar"></i> 
-                <span><?php echo date('M d, Y', strtotime($startDate)); ?> - <?php echo date('M d, Y', strtotime($endDate)); ?></span>
+                <span><?php echo fromUtcTimestamp($startDate, 'M d, Y'); ?> - <?php echo fromUtcTimestamp($endDate, 'M d, Y'); ?></span>
             </button>
         </div>
     </div>
@@ -420,11 +428,11 @@ include 'templates/header.php';
                         </tr>
                         <tr>
                             <td><strong>Valid From:</strong></td>
-                            <td><?php echo date('M d, Y', strtotime($sslData['valid_from'])); ?></td>
+                            <td><?php echo fromUtcTimestamp($sslData['valid_from'], 'M d, Y'); ?></td>
                         </tr>
                         <tr>
                             <td><strong>Valid To:</strong></td>
-                            <td><?php echo date('M d, Y', strtotime($sslData['valid_to'])); ?></td>
+                            <td><?php echo fromUtcTimestamp($sslData['valid_to'], 'M d, Y'); ?></td>
                         </tr>
                         <tr>
                             <td><strong>Days Remaining:</strong></td>
@@ -485,12 +493,12 @@ include 'templates/header.php';
                         <?php if ($domainData['created_date']): ?>
                         <tr>
                             <td><strong>Created:</strong></td>
-                            <td><?php echo date('M d, Y', strtotime($domainData['created_date'])); ?></td>
+                            <td><?php echo fromUtcTimestamp($domainData['created_date'], 'M d, Y'); ?></td>
                         </tr>
                         <?php endif; ?>
                         <tr>
                             <td><strong>Expires:</strong></td>
-                            <td><?php echo date('M d, Y', strtotime($domainData['expiry_date'])); ?></td>
+                            <td><?php echo fromUtcTimestamp($domainData['expiry_date'], 'M d, Y'); ?></td>
                         </tr>
                         <tr>
                             <td><strong>Days Remaining:</strong></td>
@@ -553,9 +561,9 @@ include 'templates/header.php';
                             </strong>
                             <br>
                             <small class="text-muted">
-                                Started: <?php echo date('M d, Y H:i', strtotime($incident['started_at'])); ?>
-                                <?php if ($incident['ended_at']): ?>
-                                    | Ended: <?php echo date('M d, Y H:i', strtotime($incident['ended_at'])); ?>
+                                                    Started: <?php echo fromUtcTimestamp($incident['started_at'], 'M d, Y H:i'); ?>
+                    <?php if ($incident['ended_at']): ?>
+                    | Ended: <?php echo fromUtcTimestamp($incident['ended_at'], 'M d, Y H:i'); ?>
                                 <?php endif; ?>
                             </small>
                             <?php if ($incident['reason']): ?>

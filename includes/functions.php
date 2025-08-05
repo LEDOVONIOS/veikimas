@@ -60,8 +60,16 @@ function formatBytes($bytes, $precision = 2) {
  * Get time ago string
  */
 function timeAgo($timestamp) {
-    $time = strtotime($timestamp);
-    $diff = time() - $time;
+    // Create DateTime object from timestamp (assumes UTC)
+    $utcDate = new DateTime($timestamp, new DateTimeZone('UTC'));
+    
+    // Convert to local timezone
+    $localDate = clone $utcDate;
+    $localDate->setTimezone(new DateTimeZone(TIMEZONE));
+    
+    // Calculate the difference from current time
+    $now = new DateTime('now', new DateTimeZone(TIMEZONE));
+    $diff = $now->getTimestamp() - $localDate->getTimestamp();
     
     if ($diff < 60) {
         return 'just now';
@@ -268,36 +276,55 @@ function parseInterval($seconds) {
  * Get date range presets
  */
 function getDateRangePresets() {
+    // Get start and end of day in UTC
+    $getUtcDayBounds = function($daysAgo = 0) {
+        $date = new DateTime("midnight -{$daysAgo} days", new DateTimeZone(TIMEZONE));
+        $start = clone $date;
+        $start->setTimezone(new DateTimeZone('UTC'));
+        
+        $end = clone $date;
+        $end->setTime(23, 59, 59);
+        $end->setTimezone(new DateTimeZone('UTC'));
+        
+        return [
+            'start' => $start->format('Y-m-d H:i:s'),
+            'end' => $end->format('Y-m-d H:i:s')
+        ];
+    };
+    
+    $today = $getUtcDayBounds(0);
+    $yesterday = $getUtcDayBounds(1);
+    
     return [
         'today' => [
             'label' => 'Today',
-            'start' => date('Y-m-d 00:00:00'),
-            'end' => date('Y-m-d 23:59:59')
+            'start' => $today['start'],
+            'end' => $today['end']
         ],
         'yesterday' => [
             'label' => 'Yesterday',
-            'start' => date('Y-m-d 00:00:00', strtotime('-1 day')),
-            'end' => date('Y-m-d 23:59:59', strtotime('-1 day'))
+            'start' => $yesterday['start'],
+            'end' => $yesterday['end']
         ],
         'last_7_days' => [
             'label' => 'Last 7 Days',
-            'start' => date('Y-m-d 00:00:00', strtotime('-7 days')),
-            'end' => date('Y-m-d 23:59:59')
+            'start' => $getUtcDayBounds(7)['start'],
+            'end' => $today['end']
         ],
         'last_30_days' => [
             'label' => 'Last 30 Days',
-            'start' => date('Y-m-d 00:00:00', strtotime('-30 days')),
-            'end' => date('Y-m-d 23:59:59')
+            'start' => $getUtcDayBounds(30)['start'],
+            'end' => $today['end']
         ],
         'last_90_days' => [
             'label' => 'Last 90 Days',
-            'start' => date('Y-m-d 00:00:00', strtotime('-90 days')),
-            'end' => date('Y-m-d 23:59:59')
+            'start' => $getUtcDayBounds(90)['start'],
+            'end' => $today['end']
         ],
         'last_365_days' => [
             'label' => 'Last 365 Days',
-            'start' => date('Y-m-d 00:00:00', strtotime('-365 days')),
-            'end' => date('Y-m-d 23:59:59')
+            'start' => $getUtcDayBounds(365)['start'],
+            'end' => $today['end']
         ]
     ];
 }
@@ -310,11 +337,36 @@ function calculateSLA($uptimePercentage) {
         return 'Four Nines';
     } elseif ($uptimePercentage >= 99.9) {
         return 'Three Nines';
-    } elseif ($uptimePercentage >= 99) {
+    } elseif ($uptimePercentage >= 99.5) {
         return 'Two Nines';
-    } elseif ($uptimePercentage >= 95) {
-        return 'Standard';
-    } else {
-        return 'Below Standard';
+    } elseif ($uptimePercentage >= 99) {
+        return 'One Nine';
     }
+    return 'Below SLA';
+}
+
+/**
+ * Get current UTC timestamp for database storage
+ */
+function getUtcTimestamp() {
+    $utc = new DateTime('now', new DateTimeZone('UTC'));
+    return $utc->format('Y-m-d H:i:s');
+}
+
+/**
+ * Convert local datetime to UTC for database storage
+ */
+function toUtcTimestamp($localDatetime) {
+    $date = new DateTime($localDatetime, new DateTimeZone(TIMEZONE));
+    $date->setTimezone(new DateTimeZone('UTC'));
+    return $date->format('Y-m-d H:i:s');
+}
+
+/**
+ * Convert UTC datetime to local timezone for display
+ */
+function fromUtcTimestamp($utcDatetime, $format = 'Y-m-d H:i:s') {
+    $date = new DateTime($utcDatetime, new DateTimeZone('UTC'));
+    $date->setTimezone(new DateTimeZone(TIMEZONE));
+    return $date->format($format);
 }

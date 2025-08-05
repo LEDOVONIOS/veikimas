@@ -126,13 +126,13 @@ class Monitor {
         
         // Update last check time
         $updateData = [
-            'last_check' => date('Y-m-d H:i:s'),
+            'last_check' => getUtcTimestamp(),
             'current_status' => $isUp ? 'up' : 'down'
         ];
         
         // Status changed
         if ($wasUp !== $isUp) {
-            $updateData['last_status_change'] = date('Y-m-d H:i:s');
+            $updateData['last_status_change'] = getUtcTimestamp();
             
             if (!$isUp) {
                 // Site went down - create incident
@@ -196,7 +196,7 @@ class Monitor {
             $this->db->update(
                 DB_PREFIX . 'incident_logs',
                 [
-                    'ended_at' => date('Y-m-d H:i:s'),
+                    'ended_at' => getUtcTimestamp(),
                     'duration' => $duration
                 ],
                 'id = ?',
@@ -278,11 +278,11 @@ class Monitor {
         if ($error) {
             $data = [
                 'error_message' => $error,
-                'last_check' => date('Y-m-d H:i:s')
+                'last_check' => getUtcTimestamp()
             ];
         } else {
             $data['error_message'] = null;
-            $data['last_check'] = date('Y-m-d H:i:s');
+            $data['last_check'] = getUtcTimestamp();
         }
         
         if ($existing) {
@@ -419,7 +419,7 @@ class Monitor {
             'registrar' => $data['registrar'] ?? null,
             'expiry_date' => $data['expiry_date'] ?? null,
             'days_remaining' => $data['days_remaining'] ?? null,
-            'last_check' => date('Y-m-d H:i:s')
+            'last_check' => getUtcTimestamp()
         ];
         
         if ($existing) {
@@ -469,7 +469,7 @@ class Monitor {
             'monitor_name' => $project['name'],
             'checked_url' => $project['url'],
             'root_cause' => $rootCause,
-            'incident_start' => date('Y-m-d H:i:s'),
+            'incident_start' => fromUtcTimestamp(getUtcTimestamp()),
             'status_code' => $checkResult['status_code'],
             'project_id' => $project['id']
         ]);
@@ -527,8 +527,8 @@ class Monitor {
             'monitor_name' => $project['name'],
             'checked_url' => $project['url'],
             'root_cause' => $incident['reason'] ?: 'Connection Failed',
-            'incident_start' => $incident['started_at'] ? date('Y-m-d H:i:s', strtotime($incident['started_at'])) : 'Unknown',
-            'incident_resolved' => date('Y-m-d H:i:s'),
+            'incident_start' => $incident['started_at'] ? fromUtcTimestamp($incident['started_at']) : 'Unknown',
+            'incident_resolved' => fromUtcTimestamp(getUtcTimestamp()),
             'incident_duration' => $durationText,
             'project_id' => $project['id']
         ]);
@@ -566,7 +566,7 @@ class Monitor {
         $body .= "Project: {$project['name']}\n";
         $body .= "URL: {$project['url']}\n";
         $body .= "Days Remaining: {$daysRemaining}\n";
-        $body .= "Time: " . date('Y-m-d H:i:s') . "\n\n";
+        $body .= "Time: " . fromUtcTimestamp(getUtcTimestamp()) . "\n\n";
         $body .= "Please renew your SSL certificate to avoid security warnings.";
         
         if ($this->mailer->send($recipient, $subject, $body)) {
@@ -602,7 +602,7 @@ class Monitor {
         $body .= "Project: {$project['name']}\n";
         $body .= "URL: {$project['url']}\n";
         $body .= "Days Remaining: {$daysRemaining}\n";
-        $body .= "Time: " . date('Y-m-d H:i:s') . "\n\n";
+        $body .= "Time: " . fromUtcTimestamp(getUtcTimestamp()) . "\n\n";
         $body .= "Please renew your domain to avoid losing your website.";
         
         if ($this->mailer->send($recipient, $subject, $body)) {
@@ -642,7 +642,8 @@ class Monitor {
      * Get uptime percentage for a project
      */
     public function getUptimePercentage($projectId, $hours = 24) {
-        $since = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
+        $utc = new DateTime("-{$hours} hours", new DateTimeZone('UTC'));
+        $since = $utc->format('Y-m-d H:i:s');
         
         $stats = $this->db->fetchOne(
             "SELECT 
