@@ -7,6 +7,7 @@ $auth->requireLogin();
 
 // Check if user can create projects
 if (!$auth->canCreateProject()) {
+    $_SESSION['error'] = 'You have reached your project limit. Please contact administrator to increase your limit.';
     redirect('dashboard.php');
 }
 

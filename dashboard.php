@@ -14,6 +14,7 @@ $search = sanitize(getGet('search', ''));
 $tag = sanitize(getGet('tag', ''));
 $status_filter = sanitize(getGet('status', ''));
 $sort = sanitize(getGet('sort', 'down_first'));
+$user_id = (int) getGet('user_id', 0);
 
 // Build query with filters
 $where_conditions = [];
@@ -21,6 +22,12 @@ $params = [];
 
 if ($auth->isAdmin()) {
     $base_query = "SELECT p.*, u.username, u.email as user_email FROM " . DB_PREFIX . "projects p LEFT JOIN " . DB_PREFIX . "users u ON p.user_id = u.id";
+    
+    // If user_id is specified, filter by that user
+    if ($user_id > 0) {
+        $where_conditions[] = "p.user_id = ?";
+        $params[] = $user_id;
+    }
 } else {
     $base_query = "SELECT * FROM " . DB_PREFIX . "projects";
     $where_conditions[] = "user_id = ?";
@@ -405,7 +412,21 @@ include 'templates/header.php';
         <div class="col-lg-9">
             <!-- Page header -->
             <div class="page-header d-flex justify-content-between align-items-center">
-                <h1 class="page-title">Monitors.</h1>
+                <div>
+                    <h1 class="page-title">Monitors.</h1>
+                    <?php if ($auth->isAdmin() && $user_id > 0): ?>
+                        <?php 
+                        $viewed_user = $db->fetchOne("SELECT username FROM " . DB_PREFIX . "users WHERE id = ?", [$user_id]);
+                        if ($viewed_user): ?>
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-user"></i> Viewing projects for user: <strong><?php echo htmlspecialchars($viewed_user['username']); ?></strong>
+                                <a href="dashboard.php" class="btn btn-sm btn-outline-secondary ml-2">
+                                    <i class="fas fa-times"></i> Clear filter
+                                </a>
+                            </p>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </div>
                 <?php if ($auth->canCreateProject()): ?>
                     <a href="project-add.php" class="btn btn-new-monitor">
                         <i class="fas fa-plus"></i> New monitor
@@ -416,6 +437,9 @@ include 'templates/header.php';
             <!-- Toolbar -->
             <div class="toolbar">
                 <form method="GET" action="">
+                    <?php if ($auth->isAdmin() && $user_id > 0): ?>
+                        <input type="hidden" name="user_id" value="<?php echo $user_id; ?>">
+                    <?php endif; ?>
                     <div class="form-row align-items-center">
                         <div class="col-auto">
                             <div class="custom-control custom-checkbox">

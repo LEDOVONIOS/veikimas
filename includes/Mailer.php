@@ -351,9 +351,13 @@ class Mailer {
         }
         
         .logo {
-            font-size: 28px;
-            font-weight: bold;
             margin-bottom: 20px;
+        }
+        
+        .logo img {
+            height: 50px;
+            max-width: 200px;
+            object-fit: contain;
         }
         
         .status-message {
@@ -479,7 +483,7 @@ class Mailer {
     <div class="email-container">
         <!-- Header -->
         <div class="header">
-            <div class="logo">' . SITE_NAME . '</div>
+            <div class="logo"><img src="' . rtrim(SITE_URL, '/') . '/images/seorocket.png" alt="' . SITE_NAME . ' Logo"></div>
             <h1 class="status-message">' . htmlspecialchars($data['monitor_name']) . ' is down.</h1>
         </div>
         
@@ -610,9 +614,13 @@ class Mailer {
         }
         
         .logo {
-            font-size: 28px;
-            font-weight: bold;
             margin-bottom: 20px;
+        }
+        
+        .logo img {
+            height: 50px;
+            max-width: 200px;
+            object-fit: contain;
         }
         
         .status-message {
@@ -765,7 +773,7 @@ class Mailer {
     <div class="email-container">
         <!-- Header -->
         <div class="header">
-            <div class="logo">' . SITE_NAME . '</div>
+            <div class="logo"><img src="' . rtrim(SITE_URL, '/') . '/images/seorocket.png" alt="' . SITE_NAME . ' Logo"></div>
             <h1 class="status-message">' . htmlspecialchars($data['monitor_name']) . ' is up.</h1>
         </div>
         

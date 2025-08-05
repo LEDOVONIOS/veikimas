@@ -115,6 +115,11 @@ class Auth {
             return true;
         }
         
+        // If project_limit is 0, allow unlimited projects
+        if ($this->user['project_limit'] == 0) {
+            return true;
+        }
+        
         $projectCount = $this->db->fetchValue(
             "SELECT COUNT(*) FROM " . DB_PREFIX . "projects WHERE user_id = ?",
             [$this->user['id']]

@@ -43,6 +43,7 @@ if (isPost()) {
     $confirm_password = getPost('confirm_password');
     $role = getPost('role', 'user');
     $status = getPost('status', 'active');
+    $project_limit = (int)getPost('project_limit', $user['project_limit']);
     
     // Validation
     if (empty($username)) {
@@ -74,6 +75,10 @@ if (isPost()) {
         $errors[] = 'Invalid status selected.';
     }
     
+    if ($project_limit < 0 || $project_limit > 999) {
+        $errors[] = 'Project limit must be between 0 and 999.';
+    }
+    
     if (empty($errors)) {
         // Check if username already exists (excluding current user)
         $existingUser = $db->fetchOne(
@@ -99,6 +104,7 @@ if (isPost()) {
                     'email' => $email,
                     'role' => $role,
                     'status' => $status,
+                    'project_limit' => $project_limit,
                     'updated_at' => date('Y-m-d H:i:s')
                 ];
                 
@@ -198,6 +204,14 @@ include 'templates/header.php';
                             <option value="active" <?php echo getPost('status', $user['status']) === 'active' ? 'selected' : ''; ?>>Active</option>
                             <option value="inactive" <?php echo getPost('status', $user['status']) === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
                         </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Project Limit</label>
+                        <input type="number" class="form-control" name="project_limit" 
+                               value="<?php echo getPost('project_limit', $user['project_limit']); ?>"
+                               min="0" max="999" placeholder="Number of projects allowed">
+                        <small class="form-text text-muted">Maximum number of projects this user can create (0 = unlimited)</small>
                     </div>
                     
                     <hr>
