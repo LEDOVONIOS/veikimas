@@ -216,6 +216,17 @@ $additionalCSS = '
     margin-bottom: 0.25rem;
 }
 
+.monitor-name-link {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.monitor-name-link:hover {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
 .monitor-url {
     color: var(--text-secondary);
     font-size: 0.9rem;
@@ -478,7 +489,9 @@ include 'templates/header.php';
                                 
                                 <div class="col">
                                     <div class="monitor-name">
-                                        <?php echo htmlspecialchars($project['name']); ?>
+                                        <a href="project.php?id=<?php echo $project['id']; ?>" class="monitor-name-link">
+                                            <?php echo htmlspecialchars($project['name']); ?>
+                                        </a>
                                     </div>
                                     <div class="monitor-url">
                                         <?php 

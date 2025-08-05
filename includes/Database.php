@@ -115,6 +115,8 @@ class Database {
         if ($result) {
             return $this->connection->insert_id;
         }
+        // Log the error for debugging
+        error_log("Database insert failed: " . $this->last_error . " SQL: " . $sql);
         return false;
     }
     
