@@ -107,7 +107,16 @@ include 'templates/header.php';
                                                 <?php echo ucfirst($user['role']); ?>
                                             </span>
                                         </td>
-                                        <td><?php echo $user['project_count']; ?></td>
+                                        <td>
+                                            <?php if ($user['project_count'] > 0): ?>
+                                                <a href="dashboard.php?user_id=<?php echo $user['id']; ?>" 
+                                                   class="badge badge-info" title="View Projects">
+                                                    <?php echo $user['project_count']; ?> <i class="fas fa-external-link-alt"></i>
+                                                </a>
+                                            <?php else: ?>
+                                                <span class="text-muted">0</span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td>
                                             <?php if ($user['status'] === 'active'): ?>
                                                 <span class="badge badge-success">Active</span>

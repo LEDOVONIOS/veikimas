@@ -326,7 +326,8 @@
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container-fluid">
             <a class="navbar-brand" href="dashboard.php">
-                <i class="fas fa-chart-line"></i> <?php echo SITE_NAME; ?>
+                <img src="/images/seorocket.png" alt="<?php echo SITE_NAME; ?> Logo" style="height: 30px; margin-right: 10px;">
+                <?php echo SITE_NAME; ?>
             </a>
             
             <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">

@@ -4,39 +4,67 @@
  * Can be called via browser with key parameter or directly via CLI
  */
 
+// Check if config file exists
+if (!file_exists(__DIR__ . '/config/config.php')) {
+    http_response_code(500);
+    die('Error: Configuration file not found. Please copy config/config.sample.php to config/config.php and configure it.');
+}
+
 require_once __DIR__ . '/config/config.php';
 
 // Allow execution from both CLI and web
 if (php_sapi_name() !== 'cli') {
     // Web access - check for cron key
+    if (!defined('CRON_KEY')) {
+        http_response_code(500);
+        die('Error: CRON_KEY is not defined in configuration.');
+    }
+    
     if (!isset($_GET['key']) || $_GET['key'] !== CRON_KEY) {
+        http_response_code(403);
         die('Access denied. Invalid cron key.');
     }
 }
 
 require_once __DIR__ . '/includes/init.php';
 
+// Check if database object is available
+if (!isset($db) || !$db) {
+    if (php_sapi_name() !== 'cli') {
+        http_response_code(500);
+    }
+    die('Error: Database connection not available.');
+}
+
 // Set time limit
 set_time_limit(0);
 
-// Ensure MySQL uses the same timezone as PHP
-$timezone = date_default_timezone_get();
-$db->query("SET time_zone = ?", [$timezone]);
+try {
+    // Ensure MySQL uses the same timezone as PHP
+    $timezone = date_default_timezone_get();
+    $db->query("SET time_zone = ?", [$timezone]);
+} catch (Exception $e) {
+    if (php_sapi_name() !== 'cli') {
+        http_response_code(500);
+    }
+    die('Database error: ' . $e->getMessage());
+}
 
-// Update last cron run
-$db->update(
-    DB_PREFIX . 'settings',
-    ['setting_value' => date('Y-m-d H:i:s')],
-    'setting_key = ?',
-    ['cron_last_run']
-);
+try {
+    // Update last cron run
+    $db->update(
+        DB_PREFIX . 'settings',
+        ['setting_value' => date('Y-m-d H:i:s')],
+        'setting_key = ?',
+        ['cron_last_run']
+    );
 
-// Get all active projects that need checking
-$sql = "SELECT * FROM " . DB_PREFIX . "projects 
-     WHERE status = 'active' 
-     AND (last_check IS NULL 
-          OR UNIX_TIMESTAMP(last_check) + check_interval <= UNIX_TIMESTAMP(NOW()))
-     ORDER BY last_check ASC";
+    // Get all active projects that need checking
+    $sql = "SELECT * FROM " . DB_PREFIX . "projects 
+         WHERE status = 'active' 
+         AND (last_check IS NULL 
+              OR UNIX_TIMESTAMP(last_check) + check_interval <= UNIX_TIMESTAMP(NOW()))
+         ORDER BY last_check ASC";
 
 // Debug: Let's check what projects exist and their last_check times
 if (php_sapi_name() !== 'cli' || (isset($_GET['debug']) && $_GET['debug'] === 'true')) {
@@ -122,4 +150,23 @@ if (php_sapi_name() !== 'cli' && isset($_GET['json'])) {
         'errors' => count($errors),
         'timestamp' => date('Y-m-d H:i:s')
     ]);
+}
+
+} catch (Exception $e) {
+    if (php_sapi_name() !== 'cli') {
+        http_response_code(500);
+        if (isset($_GET['json'])) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'timestamp' => date('Y-m-d H:i:s')
+            ]);
+        } else {
+            echo 'Error: ' . $e->getMessage();
+        }
+    } else {
+        echo 'Error: ' . $e->getMessage() . "\n";
+    }
+    exit(1);
 }

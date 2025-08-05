@@ -126,17 +126,15 @@ if (isPost()) {
         .logo {
             width: 80px;
             height: 80px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 20px;
+            margin: 0 auto 1.5rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 1.5rem;
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
         }
-        .logo i {
-            font-size: 2.5rem;
-            color: white;
+        .logo img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
         }
         .remember-me {
             margin-top: 1rem;
@@ -153,7 +151,7 @@ if (isPost()) {
     <div class="login-container">
         <div class="login-header">
             <div class="logo">
-                <i class="fas fa-chart-line"></i>
+                <img src="/images/seorocket.png" alt="<?php echo SITE_NAME; ?> Logo">
             </div>
             <h1><?php echo SITE_NAME; ?></h1>
             <p>Monitor your websites with ease</p>
