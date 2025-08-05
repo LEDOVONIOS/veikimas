@@ -123,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'monitor_' => $config['db_prefix'],
                         'https://yourdomain.com' => $config['site_url'],
                         'Website Monitor' => $config['site_name'],
-                        'Europe/Vilnius' => $config['timezone'],
+                        'Etc/GMT-3' => $config['timezone'],
                         'noreply@yourdomain.com' => $config['mail_from'],
                         'generate_random_key_here' => $cron_key,
                         'generate_random_salt_here' => $salt
@@ -331,7 +331,7 @@ $timezones = DateTimeZone::listIdentifiers();
                     <label>Timezone</label>
                     <select class="form-control" name="timezone" required>
                         <?php foreach ($timezones as $tz): ?>
-                            <option value="<?php echo $tz; ?>" <?php echo $tz === 'Europe/Vilnius' ? 'selected' : ''; ?>>
+                            <option value="<?php echo $tz; ?>" <?php echo $tz === 'Etc/GMT-3' ? 'selected' : ''; ?>>
                                 <?php echo $tz; ?>
                             </option>
                         <?php endforeach; ?>

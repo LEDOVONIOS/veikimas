@@ -14,7 +14,7 @@ define('DB_PREFIX', 'monitor_'); // Table prefix
 // Application Settings
 define('SITE_URL', 'https://yourdomain.com'); // Without trailing slash
 define('SITE_NAME', 'Website Monitor');
-define('TIMEZONE', 'Europe/Vilnius');
+define('TIMEZONE', 'Etc/GMT-3'); // UTC+03:00
 
 // Email Settings
 define('MAIL_FROM', 'noreply@yourdomain.com');
