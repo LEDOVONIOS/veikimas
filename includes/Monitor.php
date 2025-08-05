@@ -113,7 +113,8 @@ class Monitor {
             'status_code' => $result['status_code'],
             'response_time' => $result['response_time'],
             'is_up' => $result['is_up'] ? 1 : 0,
-            'error_message' => $result['error_message']
+            'error_message' => $result['error_message'],
+            'checked_at' => getUtcTimestamp()
         ]);
     }
     
@@ -126,13 +127,13 @@ class Monitor {
         
         // Update last check time
         $updateData = [
-            'last_check' => date('Y-m-d H:i:s'),
+            'last_check' => getUtcTimestamp(),
             'current_status' => $isUp ? 'up' : 'down'
         ];
         
         // Status changed
         if ($wasUp !== $isUp) {
-            $updateData['last_status_change'] = date('Y-m-d H:i:s');
+            $updateData['last_status_change'] = getUtcTimestamp();
             
             if (!$isUp) {
                 // Site went down - create incident
@@ -196,7 +197,7 @@ class Monitor {
             $this->db->update(
                 DB_PREFIX . 'incident_logs',
                 [
-                    'ended_at' => date('Y-m-d H:i:s'),
+                    'ended_at' => getUtcTimestamp(),
                     'duration' => $duration
                 ],
                 'id = ?',
@@ -278,11 +279,11 @@ class Monitor {
         if ($error) {
             $data = [
                 'error_message' => $error,
-                'last_check' => date('Y-m-d H:i:s')
+                'last_check' => getUtcTimestamp()
             ];
         } else {
             $data['error_message'] = null;
-            $data['last_check'] = date('Y-m-d H:i:s');
+            $data['last_check'] = getUtcTimestamp();
         }
         
         if ($existing) {
@@ -419,7 +420,7 @@ class Monitor {
             'registrar' => $data['registrar'] ?? null,
             'expiry_date' => $data['expiry_date'] ?? null,
             'days_remaining' => $data['days_remaining'] ?? null,
-            'last_check' => date('Y-m-d H:i:s')
+            'last_check' => getUtcTimestamp()
         ];
         
         if ($existing) {
@@ -469,7 +470,7 @@ class Monitor {
             'monitor_name' => $project['name'],
             'checked_url' => $project['url'],
             'root_cause' => $rootCause,
-            'incident_start' => date('Y-m-d H:i:s'),
+            'incident_start' => fromUtcTimestamp(getUtcTimestamp()),
             'status_code' => $checkResult['status_code'],
             'project_id' => $project['id']
         ]);
@@ -527,8 +528,8 @@ class Monitor {
             'monitor_name' => $project['name'],
             'checked_url' => $project['url'],
             'root_cause' => $incident['reason'] ?: 'Connection Failed',
-            'incident_start' => $incident['started_at'] ? date('Y-m-d H:i:s', strtotime($incident['started_at'])) : 'Unknown',
-            'incident_resolved' => date('Y-m-d H:i:s'),
+            'incident_start' => $incident['started_at'] ? fromUtcTimestamp($incident['started_at']) : 'Unknown',
+            'incident_resolved' => fromUtcTimestamp(getUtcTimestamp()),
             'incident_duration' => $durationText,
             'project_id' => $project['id']
         ]);
@@ -566,7 +567,7 @@ class Monitor {
         $body .= "Project: {$project['name']}\n";
         $body .= "URL: {$project['url']}\n";
         $body .= "Days Remaining: {$daysRemaining}\n";
-        $body .= "Time: " . date('Y-m-d H:i:s') . "\n\n";
+        $body .= "Time: " . fromUtcTimestamp(getUtcTimestamp()) . "\n\n";
         $body .= "Please renew your SSL certificate to avoid security warnings.";
         
         if ($this->mailer->send($recipient, $subject, $body)) {
@@ -602,7 +603,7 @@ class Monitor {
         $body .= "Project: {$project['name']}\n";
         $body .= "URL: {$project['url']}\n";
         $body .= "Days Remaining: {$daysRemaining}\n";
-        $body .= "Time: " . date('Y-m-d H:i:s') . "\n\n";
+        $body .= "Time: " . fromUtcTimestamp(getUtcTimestamp()) . "\n\n";
         $body .= "Please renew your domain to avoid losing your website.";
         
         if ($this->mailer->send($recipient, $subject, $body)) {
@@ -642,7 +643,8 @@ class Monitor {
      * Get uptime percentage for a project
      */
     public function getUptimePercentage($projectId, $hours = 24) {
-        $since = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
+        $utc = new DateTime("-{$hours} hours", new DateTimeZone('UTC'));
+        $since = $utc->format('Y-m-d H:i:s');
         
         $stats = $this->db->fetchOne(
             "SELECT 
@@ -680,22 +682,26 @@ class Monitor {
      */
     public function getMonitorLogs($projectId, $since, $groupBy = 'hour') {
         $dateFormat = '%Y-%m-%d %H:00:00'; // Default hourly
+        $selectPeriod = "DATE_FORMAT(checked_at, '{$dateFormat}')";
         
         if ($groupBy === 'day') {
             $dateFormat = '%Y-%m-%d';
+            // For day grouping, we need to return a full timestamp for proper timezone conversion
+            $selectPeriod = "DATE_FORMAT(checked_at, '{$dateFormat} 00:00:00')";
         } elseif ($groupBy === 'month') {
             $dateFormat = '%Y-%m';
+            $selectPeriod = "DATE_FORMAT(checked_at, '{$dateFormat}-01 00:00:00')";
         }
         
         return $this->db->fetchAllArray(
             "SELECT 
-                DATE_FORMAT(checked_at, '{$dateFormat}') as period,
+                {$selectPeriod} as period,
                 AVG(response_time) as avg_response_time,
                 AVG(is_up) * 100 as uptime_percentage,
                 COUNT(*) as check_count
              FROM " . DB_PREFIX . "monitor_logs 
              WHERE project_id = ? AND checked_at >= ?
-             GROUP BY period
+             GROUP BY DATE_FORMAT(checked_at, '{$dateFormat}')
              ORDER BY period ASC",
             [$projectId, $since]
         );

@@ -42,15 +42,23 @@ $customEnd = getGet('end');
 // Calculate date range
 $ranges = getDateRangePresets();
 if ($dateRange === 'custom' && $customStart && $customEnd) {
-    $startDate = $customStart . ' 00:00:00';
-    $endDate = $customEnd . ' 23:59:59';
+    // Convert custom date range from local to UTC
+    $start = new DateTime($customStart . ' 00:00:00', new DateTimeZone(TIMEZONE));
+    $start->setTimezone(new DateTimeZone('UTC'));
+    $startDate = $start->format('Y-m-d H:i:s');
+    
+    $end = new DateTime($customEnd . ' 23:59:59', new DateTimeZone(TIMEZONE));
+    $end->setTimezone(new DateTimeZone('UTC'));
+    $endDate = $end->format('Y-m-d H:i:s');
 } elseif (isset($ranges[$dateRange])) {
     $startDate = $ranges[$dateRange]['start'];
     $endDate = $ranges[$dateRange]['end'];
 } else {
     // Default to last 24 hours
-    $startDate = date('Y-m-d H:i:s', strtotime('-24 hours'));
-    $endDate = date('Y-m-d H:i:s');
+    $utcStart = new DateTime('-24 hours', new DateTimeZone('UTC'));
+    $utcEnd = new DateTime('now', new DateTimeZone('UTC'));
+    $startDate = $utcStart->format('Y-m-d H:i:s');
+    $endDate = $utcEnd->format('Y-m-d H:i:s');
 }
 
 // Get uptime statistics
@@ -102,10 +110,18 @@ $chartLabels = [];
 $uptimeData = [];
 $responseTimeData = [];
 
-foreach ($monitorLogs as $log) {
-    $chartLabels[] = date('M d H:i', strtotime($log['period']));
-    $uptimeData[] = round($log['uptime_percentage'], 2);
-    $responseTimeData[] = round($log['avg_response_time'], 2);
+// Check if we have monitor logs
+if (!empty($monitorLogs)) {
+    foreach ($monitorLogs as $log) {
+        $chartLabels[] = fromUtcTimestamp($log['period'], 'M d H:i');
+        $uptimeData[] = round($log['uptime_percentage'], 2);
+        $responseTimeData[] = round($log['avg_response_time'], 2);
+    }
+} else {
+    // If no data, create empty arrays - charts will handle this
+    $chartLabels = [];
+    $uptimeData = [];
+    $responseTimeData = [];
 }
 
 $additionalCSS = '
@@ -162,74 +178,109 @@ $additionalCSS = '
 
 $additionalJS = '
 <script>
+// Debug: Log chart data
+console.log("Chart Labels:", ' . json_encode($chartLabels) . ');
+console.log("Uptime Data:", ' . json_encode($uptimeData) . ');
+console.log("Response Time Data:", ' . json_encode($responseTimeData) . ');
+
 // Response Time Chart
 const ctxResponse = document.getElementById("responseTimeChart").getContext("2d");
-const responseTimeChart = new Chart(ctxResponse, {
-    type: "line",
-    data: {
-        labels: ' . json_encode($chartLabels) . ',
-        datasets: [{
-            label: "Response Time (ms)",
-            data: ' . json_encode($responseTimeData) . ',
-            borderColor: "rgb(75, 192, 192)",
-            backgroundColor: "rgba(75, 192, 192, 0.1)",
-            tension: 0.1
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            }
+const responseTimeLabels = ' . json_encode($chartLabels) . ';
+const responseTimeDataset = ' . json_encode($responseTimeData) . ';
+
+// Check if we have data
+if (responseTimeLabels.length === 0) {
+    // Draw "No data" message
+    ctxResponse.font = "16px Arial";
+    ctxResponse.fillStyle = "#666";
+    ctxResponse.textAlign = "center";
+    ctxResponse.textBaseline = "middle";
+    ctxResponse.fillText("No monitoring data available yet", ctxResponse.canvas.width / 2, ctxResponse.canvas.height / 2);
+    ctxResponse.font = "14px Arial";
+    ctxResponse.fillText("Data will appear after monitoring starts", ctxResponse.canvas.width / 2, ctxResponse.canvas.height / 2 + 25);
+} else {
+    const responseTimeChart = new Chart(ctxResponse, {
+        type: "line",
+        data: {
+            labels: responseTimeLabels,
+            datasets: [{
+                label: "Response Time (ms)",
+                data: responseTimeDataset,
+                borderColor: "rgb(75, 192, 192)",
+                backgroundColor: "rgba(75, 192, 192, 0.1)",
+                tension: 0.1
+            }]
         },
-        scales: {
-            y: {
-                beginAtZero: true,
-                title: {
-                    display: true,
-                    text: "Response Time (ms)"
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: "Response Time (ms)"
+                    }
                 }
             }
         }
-    }
-});
+    });
+}
 
 // Uptime Chart
 const ctxUptime = document.getElementById("uptimeChart").getContext("2d");
-const uptimeChart = new Chart(ctxUptime, {
-    type: "line",
-    data: {
-        labels: ' . json_encode($chartLabels) . ',
-        datasets: [{
-            label: "Uptime %",
-            data: ' . json_encode($uptimeData) . ',
-            borderColor: "rgb(102, 126, 234)",
-            backgroundColor: "rgba(102, 126, 234, 0.1)",
-            tension: 0.1
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            }
+const uptimeLabels = ' . json_encode($chartLabels) . ';
+const uptimeDataset = ' . json_encode($uptimeData) . ';
+
+// Check if we have data
+if (uptimeLabels.length === 0) {
+    // Draw "No data" message
+    ctxUptime.font = "16px Arial";
+    ctxUptime.fillStyle = "#666";
+    ctxUptime.textAlign = "center";
+    ctxUptime.textBaseline = "middle";
+    ctxUptime.fillText("No monitoring data available yet", ctxUptime.canvas.width / 2, ctxUptime.canvas.height / 2);
+    ctxUptime.font = "14px Arial";
+    ctxUptime.fillText("Data will appear after monitoring starts", ctxUptime.canvas.width / 2, ctxUptime.canvas.height / 2 + 25);
+} else {
+    const uptimeChart = new Chart(ctxUptime, {
+        type: "line",
+        data: {
+            labels: uptimeLabels,
+            datasets: [{
+                label: "Uptime %",
+                data: uptimeDataset,
+                borderColor: "rgb(102, 126, 234)",
+                backgroundColor: "rgba(102, 126, 234, 0.1)",
+                tension: 0.1
+            }]
         },
-        scales: {
-            y: {
-                beginAtZero: true,
-                max: 100,
-                title: {
-                    display: true,
-                    text: "Uptime %"
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: "Uptime %"
+                    }
                 }
             }
         }
-    }
-});
+    });
+}
 
 // Date range picker
 $(function() {
@@ -281,7 +332,7 @@ include 'templates/header.php';
             </a>
             <button type="button" class="btn btn-info" id="daterange">
                 <i class="fas fa-calendar"></i> 
-                <span><?php echo date('M d, Y', strtotime($startDate)); ?> - <?php echo date('M d, Y', strtotime($endDate)); ?></span>
+                <span><?php echo fromUtcTimestamp($startDate, 'M d, Y'); ?> - <?php echo fromUtcTimestamp($endDate, 'M d, Y'); ?></span>
             </button>
         </div>
     </div>
@@ -420,11 +471,11 @@ include 'templates/header.php';
                         </tr>
                         <tr>
                             <td><strong>Valid From:</strong></td>
-                            <td><?php echo date('M d, Y', strtotime($sslData['valid_from'])); ?></td>
+                            <td><?php echo fromUtcTimestamp($sslData['valid_from'], 'M d, Y'); ?></td>
                         </tr>
                         <tr>
                             <td><strong>Valid To:</strong></td>
-                            <td><?php echo date('M d, Y', strtotime($sslData['valid_to'])); ?></td>
+                            <td><?php echo fromUtcTimestamp($sslData['valid_to'], 'M d, Y'); ?></td>
                         </tr>
                         <tr>
                             <td><strong>Days Remaining:</strong></td>
@@ -485,12 +536,12 @@ include 'templates/header.php';
                         <?php if ($domainData['created_date']): ?>
                         <tr>
                             <td><strong>Created:</strong></td>
-                            <td><?php echo date('M d, Y', strtotime($domainData['created_date'])); ?></td>
+                            <td><?php echo fromUtcTimestamp($domainData['created_date'], 'M d, Y'); ?></td>
                         </tr>
                         <?php endif; ?>
                         <tr>
                             <td><strong>Expires:</strong></td>
-                            <td><?php echo date('M d, Y', strtotime($domainData['expiry_date'])); ?></td>
+                            <td><?php echo fromUtcTimestamp($domainData['expiry_date'], 'M d, Y'); ?></td>
                         </tr>
                         <tr>
                             <td><strong>Days Remaining:</strong></td>
@@ -553,9 +604,9 @@ include 'templates/header.php';
                             </strong>
                             <br>
                             <small class="text-muted">
-                                Started: <?php echo date('M d, Y H:i', strtotime($incident['started_at'])); ?>
-                                <?php if ($incident['ended_at']): ?>
-                                    | Ended: <?php echo date('M d, Y H:i', strtotime($incident['ended_at'])); ?>
+                                                    Started: <?php echo fromUtcTimestamp($incident['started_at'], 'M d, Y H:i'); ?>
+                    <?php if ($incident['ended_at']): ?>
+                    | Ended: <?php echo fromUtcTimestamp($incident['ended_at'], 'M d, Y H:i'); ?>
                                 <?php endif; ?>
                             </small>
                             <?php if ($incident['reason']): ?>
