@@ -58,6 +58,14 @@ class Database {
                 return false;
             }
             
+            // For INSERT, UPDATE, DELETE queries, just return the execute result
+            $sql_type = strtoupper(substr(trim($sql), 0, 6));
+            if (in_array($sql_type, ['INSERT', 'UPDATE', 'DELETE'])) {
+                $stmt->close();
+                return $result;
+            }
+            
+            // For SELECT queries, get the result set
             $result = $stmt->get_result();
             $stmt->close();
             

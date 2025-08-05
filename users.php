@@ -46,10 +46,13 @@ include 'templates/header.php';
     <div class="row">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="mb-0">
                         <i class="fas fa-users"></i> User Management
                     </h4>
+                    <a href="user-add.php" class="btn btn-primary btn-sm">
+                        <i class="fas fa-user-plus"></i> Add New User
+                    </a>
                 </div>
                 <div class="card-body">
                     <form method="GET" action="" class="mb-4">

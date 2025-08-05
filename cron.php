@@ -19,6 +19,10 @@ require_once __DIR__ . '/includes/init.php';
 // Set time limit
 set_time_limit(0);
 
+// Ensure MySQL uses the same timezone as PHP
+$timezone = date_default_timezone_get();
+$db->query("SET time_zone = ?", [$timezone]);
+
 // Update last cron run
 $db->update(
     DB_PREFIX . 'settings',
@@ -28,12 +32,41 @@ $db->update(
 );
 
 // Get all active projects that need checking
-$projects = $db->fetchAllArray(
-    "SELECT * FROM " . DB_PREFIX . "projects 
+$sql = "SELECT * FROM " . DB_PREFIX . "projects 
      WHERE status = 'active' 
-     AND (last_check IS NULL OR last_check < DATE_SUB(NOW(), INTERVAL check_interval SECOND))
-     ORDER BY last_check ASC"
-);
+     AND (last_check IS NULL 
+          OR UNIX_TIMESTAMP(last_check) + check_interval <= UNIX_TIMESTAMP(NOW()))
+     ORDER BY last_check ASC";
+
+// Debug: Let's check what projects exist and their last_check times
+if (php_sapi_name() !== 'cli' || (isset($_GET['debug']) && $_GET['debug'] === 'true')) {
+    $allProjects = $db->fetchAllArray(
+        "SELECT id, name, status, last_check, check_interval, 
+         DATE_SUB(NOW(), INTERVAL check_interval SECOND) as next_check_due,
+         CASE 
+            WHEN last_check IS NULL THEN 'Never checked'
+            WHEN last_check < DATE_SUB(NOW(), INTERVAL check_interval SECOND) THEN 'Due for check'
+            ELSE 'Not due yet'
+         END as check_status
+         FROM " . DB_PREFIX . "projects 
+         WHERE status = 'active'"
+    );
+    
+    echo "Debug: All active projects status:\n";
+    foreach ($allProjects as $p) {
+        echo sprintf("- %s (ID: %d): last_check=%s, interval=%ds, next_due=%s, status=%s\n", 
+            $p['name'], 
+            $p['id'], 
+            $p['last_check'] ?: 'NULL', 
+            $p['check_interval'],
+            $p['next_check_due'],
+            $p['check_status']
+        );
+    }
+    echo "\n";
+}
+
+$projects = $db->fetchAllArray($sql);
 
 $monitor = new Monitor();
 $checkedCount = 0;
