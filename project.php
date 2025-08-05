@@ -110,10 +110,18 @@ $chartLabels = [];
 $uptimeData = [];
 $responseTimeData = [];
 
-foreach ($monitorLogs as $log) {
-    $chartLabels[] = fromUtcTimestamp($log['period'], 'M d H:i');
-    $uptimeData[] = round($log['uptime_percentage'], 2);
-    $responseTimeData[] = round($log['avg_response_time'], 2);
+// Check if we have monitor logs
+if (!empty($monitorLogs)) {
+    foreach ($monitorLogs as $log) {
+        $chartLabels[] = fromUtcTimestamp($log['period'], 'M d H:i');
+        $uptimeData[] = round($log['uptime_percentage'], 2);
+        $responseTimeData[] = round($log['avg_response_time'], 2);
+    }
+} else {
+    // If no data, create empty arrays - charts will handle this
+    $chartLabels = [];
+    $uptimeData = [];
+    $responseTimeData = [];
 }
 
 $additionalCSS = '
@@ -170,74 +178,109 @@ $additionalCSS = '
 
 $additionalJS = '
 <script>
+// Debug: Log chart data
+console.log("Chart Labels:", ' . json_encode($chartLabels) . ');
+console.log("Uptime Data:", ' . json_encode($uptimeData) . ');
+console.log("Response Time Data:", ' . json_encode($responseTimeData) . ');
+
 // Response Time Chart
 const ctxResponse = document.getElementById("responseTimeChart").getContext("2d");
-const responseTimeChart = new Chart(ctxResponse, {
-    type: "line",
-    data: {
-        labels: ' . json_encode($chartLabels) . ',
-        datasets: [{
-            label: "Response Time (ms)",
-            data: ' . json_encode($responseTimeData) . ',
-            borderColor: "rgb(75, 192, 192)",
-            backgroundColor: "rgba(75, 192, 192, 0.1)",
-            tension: 0.1
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            }
+const responseTimeLabels = ' . json_encode($chartLabels) . ';
+const responseTimeDataset = ' . json_encode($responseTimeData) . ';
+
+// Check if we have data
+if (responseTimeLabels.length === 0) {
+    // Draw "No data" message
+    ctxResponse.font = "16px Arial";
+    ctxResponse.fillStyle = "#666";
+    ctxResponse.textAlign = "center";
+    ctxResponse.textBaseline = "middle";
+    ctxResponse.fillText("No monitoring data available yet", ctxResponse.canvas.width / 2, ctxResponse.canvas.height / 2);
+    ctxResponse.font = "14px Arial";
+    ctxResponse.fillText("Data will appear after monitoring starts", ctxResponse.canvas.width / 2, ctxResponse.canvas.height / 2 + 25);
+} else {
+    const responseTimeChart = new Chart(ctxResponse, {
+        type: "line",
+        data: {
+            labels: responseTimeLabels,
+            datasets: [{
+                label: "Response Time (ms)",
+                data: responseTimeDataset,
+                borderColor: "rgb(75, 192, 192)",
+                backgroundColor: "rgba(75, 192, 192, 0.1)",
+                tension: 0.1
+            }]
         },
-        scales: {
-            y: {
-                beginAtZero: true,
-                title: {
-                    display: true,
-                    text: "Response Time (ms)"
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: "Response Time (ms)"
+                    }
                 }
             }
         }
-    }
-});
+    });
+}
 
 // Uptime Chart
 const ctxUptime = document.getElementById("uptimeChart").getContext("2d");
-const uptimeChart = new Chart(ctxUptime, {
-    type: "line",
-    data: {
-        labels: ' . json_encode($chartLabels) . ',
-        datasets: [{
-            label: "Uptime %",
-            data: ' . json_encode($uptimeData) . ',
-            borderColor: "rgb(102, 126, 234)",
-            backgroundColor: "rgba(102, 126, 234, 0.1)",
-            tension: 0.1
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            }
+const uptimeLabels = ' . json_encode($chartLabels) . ';
+const uptimeDataset = ' . json_encode($uptimeData) . ';
+
+// Check if we have data
+if (uptimeLabels.length === 0) {
+    // Draw "No data" message
+    ctxUptime.font = "16px Arial";
+    ctxUptime.fillStyle = "#666";
+    ctxUptime.textAlign = "center";
+    ctxUptime.textBaseline = "middle";
+    ctxUptime.fillText("No monitoring data available yet", ctxUptime.canvas.width / 2, ctxUptime.canvas.height / 2);
+    ctxUptime.font = "14px Arial";
+    ctxUptime.fillText("Data will appear after monitoring starts", ctxUptime.canvas.width / 2, ctxUptime.canvas.height / 2 + 25);
+} else {
+    const uptimeChart = new Chart(ctxUptime, {
+        type: "line",
+        data: {
+            labels: uptimeLabels,
+            datasets: [{
+                label: "Uptime %",
+                data: uptimeDataset,
+                borderColor: "rgb(102, 126, 234)",
+                backgroundColor: "rgba(102, 126, 234, 0.1)",
+                tension: 0.1
+            }]
         },
-        scales: {
-            y: {
-                beginAtZero: true,
-                max: 100,
-                title: {
-                    display: true,
-                    text: "Uptime %"
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: "Uptime %"
+                    }
                 }
             }
         }
-    }
-});
+    });
+}
 
 // Date range picker
 $(function() {

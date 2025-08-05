@@ -113,7 +113,8 @@ class Monitor {
             'status_code' => $result['status_code'],
             'response_time' => $result['response_time'],
             'is_up' => $result['is_up'] ? 1 : 0,
-            'error_message' => $result['error_message']
+            'error_message' => $result['error_message'],
+            'checked_at' => getUtcTimestamp()
         ]);
     }
     
@@ -681,22 +682,26 @@ class Monitor {
      */
     public function getMonitorLogs($projectId, $since, $groupBy = 'hour') {
         $dateFormat = '%Y-%m-%d %H:00:00'; // Default hourly
+        $selectPeriod = "DATE_FORMAT(checked_at, '{$dateFormat}')";
         
         if ($groupBy === 'day') {
             $dateFormat = '%Y-%m-%d';
+            // For day grouping, we need to return a full timestamp for proper timezone conversion
+            $selectPeriod = "DATE_FORMAT(checked_at, '{$dateFormat} 00:00:00')";
         } elseif ($groupBy === 'month') {
             $dateFormat = '%Y-%m';
+            $selectPeriod = "DATE_FORMAT(checked_at, '{$dateFormat}-01 00:00:00')";
         }
         
         return $this->db->fetchAllArray(
             "SELECT 
-                DATE_FORMAT(checked_at, '{$dateFormat}') as period,
+                {$selectPeriod} as period,
                 AVG(response_time) as avg_response_time,
                 AVG(is_up) * 100 as uptime_percentage,
                 COUNT(*) as check_count
              FROM " . DB_PREFIX . "monitor_logs 
              WHERE project_id = ? AND checked_at >= ?
-             GROUP BY period
+             GROUP BY DATE_FORMAT(checked_at, '{$dateFormat}')
              ORDER BY period ASC",
             [$projectId, $since]
         );
